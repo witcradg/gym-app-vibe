@@ -13,6 +13,17 @@ import { exercises } from "../data/exercises";
 const STORAGE_KEY = "gym-app-v1-state";
 const EXERCISE_SEED_SIGNATURE = JSON.stringify(exercises);
 
+type RuntimeExercise = {
+  id: string;
+  collectionId: string;
+  name: string;
+  order: number;
+  sets: number;
+  reps: number;
+  weight: number;
+  notes: string;
+};
+
 type PersistedExerciseState = {
   notes: string;
   sets: number;
@@ -25,6 +36,46 @@ type PersistedAppState = {
   exercisesById: Record<string, PersistedExerciseState>;
   setChecksByExercise: Record<string, boolean[]>;
 };
+
+const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const nextValue = Math.floor(value);
+    return nextValue >= 1 ? nextValue : fallback;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isNaN(parsed) && parsed >= 1) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
+
+const toNonNegativeIntFromSeed = (value: unknown, fallback: number) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const nextValue = Math.floor(value);
+    return nextValue >= 0 ? nextValue : fallback;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+};
+
+const seedExercises: RuntimeExercise[] = exercises.map((exercise) => ({
+  ...exercise,
+  sets: toPositiveIntFromSeed(exercise.sets, 1),
+  reps: toPositiveIntFromSeed(exercise.reps, 10),
+  weight: toNonNegativeIntFromSeed(exercise.weight, 0),
+  notes: typeof exercise.notes === "string" ? exercise.notes : "",
+}));
 
 const toPositiveInt = (value: unknown, fallback: number) => {
   if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -45,7 +96,7 @@ const toNonNegativeInt = (value: unknown, fallback: number) => {
 };
 
 const mergeExerciseState = (savedState: PersistedAppState | null) =>
-  exercises.map((exercise) => {
+  seedExercises.map((exercise) => {
     const savedExercise = savedState?.exercisesById[exercise.id];
 
     if (!savedExercise) {
@@ -65,7 +116,7 @@ const mergeExerciseState = (savedState: PersistedAppState | null) =>
   });
 
 const buildSetChecksState = (
-  currentExercises: typeof exercises,
+  currentExercises: RuntimeExercise[],
   savedState: PersistedAppState | null,
 ) =>
   Object.fromEntries(
@@ -81,14 +132,14 @@ const buildSetChecksState = (
 
 const buildInitialSetChecks = () =>
   Object.fromEntries(
-    exercises.map((exercise) => [
+    seedExercises.map((exercise) => [
       exercise.id,
       Array.from({ length: exercise.sets }, () => false),
     ]),
   );
 
 export default function Home() {
-  const [exerciseState, setExerciseState] = useState(exercises);
+  const [exerciseState, setExerciseState] = useState(seedExercises);
   const [setChecksByExercise, setSetChecksByExercise] = useState(buildInitialSetChecks);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
     null,
