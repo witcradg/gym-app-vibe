@@ -30,6 +30,11 @@ export type NavigationState = {
   activeExerciseIndex: number;
 };
 
+export type ExerciseCompletionStatus =
+  | "not-started"
+  | "in-progress"
+  | "complete";
+
 const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     const nextValue = Math.floor(value);
@@ -191,4 +196,27 @@ export const restoreNavigationState = (
     activeCollectionId: collectionId,
     activeExerciseIndex: clampedIndex,
   };
+};
+
+export const deriveExerciseCompletionStatus = (
+  setChecks: boolean[] | undefined,
+  expectedSetCount: number,
+): ExerciseCompletionStatus => {
+  if (expectedSetCount < 1) {
+    return "not-started";
+  }
+
+  const checkedSetCount = Array.from({ length: expectedSetCount }, (_, index) =>
+    Boolean(setChecks?.[index]),
+  ).filter(Boolean).length;
+
+  if (checkedSetCount === expectedSetCount) {
+    return "complete";
+  }
+
+  if (checkedSetCount > 0) {
+    return "in-progress";
+  }
+
+  return "not-started";
 };

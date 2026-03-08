@@ -3,6 +3,7 @@ import type { Exercise } from "./exercises";
 import {
   buildPersistenceState,
   createSeedExercises,
+  deriveExerciseCompletionStatus,
   mergeExerciseState,
   restoreNavigationState,
 } from "./exerciseState";
@@ -170,5 +171,16 @@ describe("exerciseState model and persistence", () => {
     expect(navigation.view).toBe("collections");
     expect(navigation.activeCollectionId).toBeNull();
     expect(navigation.activeExerciseIndex).toBe(0);
+  });
+
+  it("derives not-started, in-progress, and complete from set checks", () => {
+    expect(deriveExerciseCompletionStatus(undefined, 3)).toBe("not-started");
+    expect(deriveExerciseCompletionStatus([false, false, false], 3)).toBe(
+      "not-started",
+    );
+    expect(deriveExerciseCompletionStatus([true, false, false], 3)).toBe(
+      "in-progress",
+    );
+    expect(deriveExerciseCompletionStatus([true, true, true], 3)).toBe("complete");
   });
 });

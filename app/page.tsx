@@ -15,6 +15,7 @@ import {
   buildPersistenceState,
   buildSetChecksState,
   createSeedExercises,
+  deriveExerciseCompletionStatus,
   mergeExerciseState,
   restoreNavigationState,
 } from "../data/exerciseState";
@@ -54,6 +55,12 @@ const getSwipeDirection = (
 
   return null;
 };
+
+const completionUi = {
+  "not-started": { symbol: "○", label: "Not started" },
+  "in-progress": { symbol: "◐", label: "In progress" },
+  complete: { symbol: "✓", label: "Complete" },
+} as const;
 
 export default function Home() {
   const [exerciseState, setExerciseState] = useState(seedExercises);
@@ -315,15 +322,11 @@ export default function Home() {
     });
   };
 
-  const isExerciseComplete = (exerciseId: string, expectedSetCount: number) => {
-    const setChecks = setChecksByExercise[exerciseId] ?? [];
-
-    return (
-      setChecks.length === expectedSetCount &&
-      setChecks.length > 0 &&
-      setChecks.every(Boolean)
-    );
-  };
+  const isExerciseComplete = (exerciseId: string, expectedSetCount: number) =>
+    deriveExerciseCompletionStatus(
+      setChecksByExercise[exerciseId],
+      expectedSetCount,
+    ) === "complete";
 
   const handleResetCollection = () => {
     if (!activeCollectionId) {
@@ -448,6 +451,11 @@ export default function Home() {
   if (view === "exercise-card" && selectedCollection && activeExercise) {
     const currentExercisePosition = activeExerciseIndex + 1;
     const totalExercises = orderedExercises.length;
+    const currentExerciseCompletion = deriveExerciseCompletionStatus(
+      setChecksByExercise[activeExercise.id],
+      activeExercise.sets,
+    );
+    const currentCompletionUi = completionUi[currentExerciseCompletion];
 
     return (
       <main className="home">
@@ -471,7 +479,13 @@ export default function Home() {
             onClick={() => setIsJumpMenuOpen(true)}
             aria-label="Open exercise jump menu"
           >
-            {currentExercisePosition} / {totalExercises}
+            <span>{currentExercisePosition} / {totalExercises}</span>
+            <span
+              className={`exercise-progress-status exercise-progress-status--${currentExerciseCompletion}`}
+              aria-label={currentCompletionUi.label}
+            >
+              {currentCompletionUi.symbol}
+            </span>
           </button>
 
           <div className="exercise-expanded__header">
@@ -569,7 +583,14 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="exercise-jump-list">
-                  {orderedExercises.map((exercise, index) => (
+                  {orderedExercises.map((exercise, index) => {
+                    const completion = deriveExerciseCompletionStatus(
+                      setChecksByExercise[exercise.id],
+                      exercise.sets,
+                    );
+                    const completionForUi = completionUi[completion];
+
+                    return (
                     <button
                       key={exercise.id}
                       type="button"
@@ -582,8 +603,15 @@ export default function Home() {
                         {index + 1}.
                       </span>
                       <span className="exercise-jump-item__name">{exercise.name}</span>
+                      <span
+                        className={`exercise-jump-item__status exercise-jump-item__status--${completion}`}
+                        aria-label={completionForUi.label}
+                      >
+                        {completionForUi.symbol}
+                      </span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
