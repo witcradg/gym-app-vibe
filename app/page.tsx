@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -15,8 +16,13 @@ import {
   buildSetChecksState,
   createSeedExercises,
   mergeExerciseState,
+  restoreNavigationState,
 } from "../data/exerciseState";
-import type { PersistedAppState } from "../data/exerciseState";
+import type {
+  NavigationView,
+  PersistedAppState,
+  RuntimeExercise,
+} from "../data/exerciseState";
 
 const STORAGE_KEY = "gym-app-v1-state";
 const EXERCISE_SEED_SIGNATURE = JSON.stringify(exercises);
@@ -27,56 +33,73 @@ export default function Home() {
   const [setChecksByExercise, setSetChecksByExercise] = useState(() =>
     buildInitialSetChecks(seedExercises),
   );
-  const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
+  const [view, setView] = useState<NavigationView>("collections");
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
     null,
   );
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
   const [isAdjustingPlan, setIsAdjustingPlan] = useState(false);
   const [showResetFeedback, setShowResetFeedback] = useState(false);
   const hasLoadedPersistenceRef = useRef(false);
   const resetFeedbackTimerRef = useRef<number | null>(null);
-  const swipeStartRef = useRef<{
+  const cardSwipeStartRef = useRef<{
     x: number;
     y: number;
     isBlocked: boolean;
   } | null>(null);
+  const listSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const latestStateRef = useRef<{
+    exerciseState: RuntimeExercise[];
+    setChecksByExercise: Record<string, boolean[]>;
+    activeCollectionId: string | null;
+    activeExerciseIndex: number;
+    view: NavigationView;
+  }>({
+    exerciseState: seedExercises,
+    setChecksByExercise: buildInitialSetChecks(seedExercises),
+    activeCollectionId: null,
+    activeExerciseIndex: 0,
+    view: "collections",
+  });
 
   const selectedCollection = useMemo(
     () =>
-      selectedCollectionId
-        ? collections.find((collection) => collection.id === selectedCollectionId) ??
+      activeCollectionId
+        ? collections.find((collection) => collection.id === activeCollectionId) ??
           null
         : null,
-    [selectedCollectionId],
+    [activeCollectionId],
   );
 
   const orderedExercises = useMemo(() => {
-    if (!selectedCollectionId) {
+    if (!activeCollectionId) {
       return [];
     }
 
     return exerciseState
-      .filter((exercise) => exercise.collectionId === selectedCollectionId)
+      .filter((exercise) => exercise.collectionId === activeCollectionId)
       .sort((a, b) => a.order - b.order);
-  }, [selectedCollectionId, exerciseState]);
+  }, [activeCollectionId, exerciseState]);
 
-  const handleOpenCollection = (collectionId: string) => {
-    setSelectedCollectionId(collectionId);
-    setSelectedExerciseId(null);
-    setIsAdjustingPlan(false);
-    setShowResetFeedback(false);
-  };
+  const persistNow = useCallback(() => {
+    if (!hasLoadedPersistenceRef.current) {
+      return;
+    }
 
-  const handleBack = () => {
-    setSelectedCollectionId(null);
-    setSelectedExerciseId(null);
-    setIsAdjustingPlan(false);
-    setShowResetFeedback(false);
-  };
+    const latest = latestStateRef.current;
+    const persistenceState = buildPersistenceState(
+      latest.exerciseState,
+      latest.setChecksByExercise,
+      EXERCISE_SEED_SIGNATURE,
+      {
+        activeCollectionId: latest.activeCollectionId,
+        activeExerciseIndex: latest.activeExerciseIndex,
+        activeView: latest.view === "exercise-card" ? "exercise-card" : "exercise-list",
+      },
+    );
 
-  useEffect(() => {
-    setIsAdjustingPlan(false);
-  }, [selectedExerciseId]);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistenceState));
+  }, []);
 
   useEffect(() => {
     try {
@@ -97,9 +120,17 @@ export default function Home() {
 
       const mergedExercises = mergeExerciseState(seedExercises, savedState);
       const mergedSetChecks = buildSetChecksState(mergedExercises, savedState);
+      const restoredNavigation = restoreNavigationState(
+        savedState,
+        collections.map((collection) => collection.id),
+        mergedExercises,
+      );
 
       setExerciseState(mergedExercises);
       setSetChecksByExercise(mergedSetChecks);
+      setActiveCollectionId(restoredNavigation.activeCollectionId);
+      setActiveExerciseIndex(restoredNavigation.activeExerciseIndex);
+      setView(restoredNavigation.view);
     } catch {
       // Ignore invalid saved data and continue with seed data.
     } finally {
@@ -108,18 +139,25 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!hasLoadedPersistenceRef.current) {
-      return;
-    }
-
-    const persistenceState = buildPersistenceState(
+    latestStateRef.current = {
       exerciseState,
       setChecksByExercise,
-      EXERCISE_SEED_SIGNATURE,
-    );
+      activeCollectionId,
+      activeExerciseIndex,
+      view,
+    };
+  }, [exerciseState, setChecksByExercise, activeCollectionId, activeExerciseIndex, view]);
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistenceState));
-  }, [exerciseState, setChecksByExercise]);
+  useEffect(() => {
+    persistNow();
+  }, [
+    activeCollectionId,
+    activeExerciseIndex,
+    exerciseState,
+    persistNow,
+    setChecksByExercise,
+    view,
+  ]);
 
   useEffect(
     () => () => {
@@ -129,6 +167,58 @@ export default function Home() {
     },
     [],
   );
+
+  useEffect(() => {
+    if (view !== "exercise-card") {
+      return;
+    }
+
+    if (orderedExercises.length < 1) {
+      setView("exercise-list");
+      setActiveExerciseIndex(0);
+      return;
+    }
+
+    if (activeExerciseIndex >= orderedExercises.length) {
+      setActiveExerciseIndex(orderedExercises.length - 1);
+      return;
+    }
+
+    if (activeExerciseIndex < 0) {
+      setActiveExerciseIndex(0);
+    }
+  }, [activeExerciseIndex, orderedExercises.length, view]);
+
+  const openCollection = (collectionId: string) => {
+    persistNow();
+    setActiveCollectionId(collectionId);
+    setActiveExerciseIndex(0);
+    setView("exercise-list");
+    setIsAdjustingPlan(false);
+    setShowResetFeedback(false);
+  };
+
+  const navigateToCollections = () => {
+    persistNow();
+    setView("collections");
+    setActiveCollectionId(null);
+    setActiveExerciseIndex(0);
+    setIsAdjustingPlan(false);
+    setShowResetFeedback(false);
+  };
+
+  const openExerciseCardByIndex = (exerciseIndex: number) => {
+    persistNow();
+    setActiveExerciseIndex(exerciseIndex);
+    setView("exercise-card");
+    setIsAdjustingPlan(false);
+  };
+
+  const navigateToExerciseList = () => {
+    persistNow();
+    setView("exercise-list");
+    setIsAdjustingPlan(false);
+  };
 
   const handleChangeNote = (exerciseId: string, notes: string) => {
     setExerciseState((currentExercises) =>
@@ -204,7 +294,7 @@ export default function Home() {
   };
 
   const handleResetCollection = () => {
-    if (!selectedCollectionId) {
+    if (!activeCollectionId) {
       return;
     }
 
@@ -230,172 +320,200 @@ export default function Home() {
     }, 1800);
   };
 
-  if (selectedCollection) {
-    const selectedExerciseIndex = selectedExerciseId
-      ? orderedExercises.findIndex((exercise) => exercise.id === selectedExerciseId)
-      : -1;
-    const selectedExercise =
-      selectedExerciseIndex >= 0 ? orderedExercises[selectedExerciseIndex] : null;
+  const moveToAdjacentExercise = (offset: -1 | 1) => {
+    const nextIndex = activeExerciseIndex + offset;
 
-    if (selectedExercise) {
-      const moveToAdjacentExercise = (offset: -1 | 1) => {
-        const nextIndex = selectedExerciseIndex + offset;
-
-        if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
-          return;
-        }
-
-        setSelectedExerciseId(orderedExercises[nextIndex].id);
-      };
-
-      const handleTouchStart: TouchEventHandler<HTMLElement> = (event) => {
-        const touch = event.touches[0];
-        const target = event.target as HTMLElement;
-
-        swipeStartRef.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          isBlocked: Boolean(target.closest("textarea, input, button")),
-        };
-      };
-
-      const handleTouchEnd: TouchEventHandler<HTMLElement> = (event) => {
-        const swipeStart = swipeStartRef.current;
-        swipeStartRef.current = null;
-
-        if (!swipeStart || swipeStart.isBlocked) {
-          return;
-        }
-
-        const touch = event.changedTouches[0];
-        const deltaX = touch.clientX - swipeStart.x;
-        const deltaY = touch.clientY - swipeStart.y;
-        const swipeThreshold = 56;
-
-        if (
-          Math.abs(deltaX) < swipeThreshold ||
-          Math.abs(deltaX) < Math.abs(deltaY) * 1.2
-        ) {
-          return;
-        }
-
-        if (deltaX < 0) {
-          moveToAdjacentExercise(1);
-          return;
-        }
-
-        moveToAdjacentExercise(-1);
-      };
-
-      return (
-        <main className="home">
-          <section
-            className="exercise-expanded"
-            aria-label="Exercise execution"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
-            <button
-              type="button"
-              className="close-button"
-              onClick={() => {
-                setSelectedExerciseId(null);
-                setIsAdjustingPlan(false);
-              }}
-            >
-              Close
-            </button>
-
-            <div className="exercise-expanded__header">
-              <h1 className="exercise-expanded__name">{selectedExercise.name}</h1>
-              <div className="exercise-expanded__plan-row">
-                <p className="exercise-expanded__plan">
-                  {selectedExercise.sets} × {selectedExercise.reps} @{" "}
-                  {selectedExercise.weight}
-                </p>
-                <button
-                  type="button"
-                  className="adjust-button"
-                  onClick={() => setIsAdjustingPlan((currentValue) => !currentValue)}
-                >
-                  {isAdjustingPlan ? "Done" : "Adjust"}
-                </button>
-              </div>
-            </div>
-
-            {isAdjustingPlan ? (
-              <div className="plan-adjust-row">
-                <input
-                  type="number"
-                  className="plan-adjust-input"
-                  min={1}
-                  inputMode="numeric"
-                  value={selectedExercise.sets}
-                  onChange={(event) =>
-                    handlePlanChange(selectedExercise.id, "sets", event.target.value)
-                  }
-                  aria-label="Sets"
-                />
-                <span className="plan-adjust-separator">×</span>
-                <input
-                  type="text"
-                  className="plan-adjust-input"
-                  inputMode="text"
-                  value={selectedExercise.reps}
-                  onChange={(event) =>
-                    handlePlanChange(selectedExercise.id, "reps", event.target.value)
-                  }
-                  aria-label="Reps"
-                />
-                <span className="plan-adjust-separator">@</span>
-                <input
-                  type="text"
-                  className="plan-adjust-input"
-                  inputMode="text"
-                  value={selectedExercise.weight}
-                  onChange={(event) =>
-                    handlePlanChange(selectedExercise.id, "weight", event.target.value)
-                  }
-                  aria-label="Weight"
-                />
-              </div>
-            ) : null}
-
-            <textarea
-              className="exercise-expanded__notes-input"
-              value={selectedExercise.notes}
-              onChange={(event) =>
-                handleChangeNote(selectedExercise.id, event.target.value)
-              }
-              rows={4}
-              aria-label="Exercise notes"
-            />
-
-            <div className="set-placeholder-list" aria-label="Set list">
-              {Array.from({ length: selectedExercise.sets }, (_, index) => (
-                <label key={index} className="set-placeholder-item">
-                  <input
-                    type="checkbox"
-                    className="set-checkbox"
-                    checked={
-                      setChecksByExercise[selectedExercise.id]?.[index] ?? false
-                    }
-                    onChange={() => handleToggleSet(selectedExercise.id, index)}
-                  />
-                  <span>Set {index + 1}</span>
-                </label>
-              ))}
-            </div>
-          </section>
-        </main>
-      );
+    if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
+      return;
     }
 
+    persistNow();
+    setActiveExerciseIndex(nextIndex);
+    setIsAdjustingPlan(false);
+  };
+
+  const handleExerciseCardTouchStart: TouchEventHandler<HTMLElement> = (event) => {
+    const touch = event.touches[0];
+    const target = event.target as HTMLElement;
+
+    cardSwipeStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      isBlocked: Boolean(target.closest("textarea, input, button")),
+    };
+  };
+
+  const handleExerciseCardTouchEnd: TouchEventHandler<HTMLElement> = (event) => {
+    const swipeStart = cardSwipeStartRef.current;
+    cardSwipeStartRef.current = null;
+
+    if (!swipeStart || swipeStart.isBlocked) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+    const swipeThreshold = 56;
+
+    const horizontalSwipe =
+      Math.abs(deltaX) >= swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
+    const verticalSwipe =
+      Math.abs(deltaY) >= swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX) * 1.2;
+
+    if (horizontalSwipe && deltaX > 0) {
+      navigateToExerciseList();
+      return;
+    }
+
+    if (!verticalSwipe) {
+      return;
+    }
+
+    if (deltaY < 0) {
+      moveToAdjacentExercise(1);
+      return;
+    }
+
+    moveToAdjacentExercise(-1);
+  };
+
+  const handleExerciseListTouchStart: TouchEventHandler<HTMLElement> = (event) => {
+    const touch = event.touches[0];
+    listSwipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleExerciseListTouchEnd: TouchEventHandler<HTMLElement> = (event) => {
+    const swipeStart = listSwipeStartRef.current;
+    listSwipeStartRef.current = null;
+
+    if (!swipeStart) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+    const swipeThreshold = 56;
+
+    if (
+      deltaX > swipeThreshold &&
+      Math.abs(deltaX) > Math.abs(deltaY) * 1.2
+    ) {
+      navigateToCollections();
+    }
+  };
+
+  const activeExercise =
+    view === "exercise-card" ? orderedExercises[activeExerciseIndex] ?? null : null;
+
+  if (view === "exercise-card" && selectedCollection && activeExercise) {
+    return (
+      <main className="home">
+        <section
+          className="exercise-expanded"
+          aria-label="Exercise execution"
+          onTouchStart={handleExerciseCardTouchStart}
+          onTouchEnd={handleExerciseCardTouchEnd}
+        >
+          <button
+            type="button"
+            className="close-button"
+            onClick={navigateToExerciseList}
+          >
+            Back to list
+          </button>
+
+          <div className="exercise-expanded__header">
+            <h1 className="exercise-expanded__name">{activeExercise.name}</h1>
+            <div className="exercise-expanded__plan-row">
+              <p className="exercise-expanded__plan">
+                {activeExercise.sets} × {activeExercise.reps} @ {activeExercise.weight}
+              </p>
+              <button
+                type="button"
+                className="adjust-button"
+                onClick={() => setIsAdjustingPlan((currentValue) => !currentValue)}
+              >
+                {isAdjustingPlan ? "Done" : "Adjust"}
+              </button>
+            </div>
+          </div>
+
+          {isAdjustingPlan ? (
+            <div className="plan-adjust-row">
+              <input
+                type="number"
+                className="plan-adjust-input"
+                min={1}
+                inputMode="numeric"
+                value={activeExercise.sets}
+                onChange={(event) =>
+                  handlePlanChange(activeExercise.id, "sets", event.target.value)
+                }
+                aria-label="Sets"
+              />
+              <span className="plan-adjust-separator">×</span>
+              <input
+                type="text"
+                className="plan-adjust-input"
+                inputMode="text"
+                value={activeExercise.reps}
+                onChange={(event) =>
+                  handlePlanChange(activeExercise.id, "reps", event.target.value)
+                }
+                aria-label="Reps"
+              />
+              <span className="plan-adjust-separator">@</span>
+              <input
+                type="text"
+                className="plan-adjust-input"
+                inputMode="text"
+                value={activeExercise.weight}
+                onChange={(event) =>
+                  handlePlanChange(activeExercise.id, "weight", event.target.value)
+                }
+                aria-label="Weight"
+              />
+            </div>
+          ) : null}
+
+          <textarea
+            className="exercise-expanded__notes-input"
+            value={activeExercise.notes}
+            onChange={(event) => handleChangeNote(activeExercise.id, event.target.value)}
+            rows={4}
+            aria-label="Exercise notes"
+          />
+
+          <div className="set-placeholder-list" aria-label="Set list">
+            {Array.from({ length: activeExercise.sets }, (_, index) => (
+              <label key={index} className="set-placeholder-item">
+                <input
+                  type="checkbox"
+                  className="set-checkbox"
+                  checked={setChecksByExercise[activeExercise.id]?.[index] ?? false}
+                  onChange={() => handleToggleSet(activeExercise.id, index)}
+                />
+                <span>Set {index + 1}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  if (view === "exercise-list" && selectedCollection) {
     return (
       <main className="home">
         <header className="home__header">
           <div className="collection-header-actions">
-            <button type="button" className="back-button" onClick={handleBack}>
+            <button
+              type="button"
+              className="back-button"
+              onClick={navigateToCollections}
+            >
               Back
             </button>
             <button
@@ -416,13 +534,18 @@ export default function Home() {
           <h1>{selectedCollection.name}</h1>
         </header>
 
-        <section className="exercise-list" aria-label={`${selectedCollection.name} exercises`}>
-          {orderedExercises.map((exercise) => (
+        <section
+          className="exercise-list"
+          aria-label={`${selectedCollection.name} exercises`}
+          onTouchStart={handleExerciseListTouchStart}
+          onTouchEnd={handleExerciseListTouchEnd}
+        >
+          {orderedExercises.map((exercise, index) => (
             <button
               key={exercise.id}
               type="button"
               className="exercise-card"
-              onClick={() => setSelectedExerciseId(exercise.id)}
+              onClick={() => openExerciseCardByIndex(index)}
             >
               <span className="exercise-card__name-row">
                 <span className="exercise-card__name">{exercise.name}</span>
@@ -455,7 +578,7 @@ export default function Home() {
             key={collection.id}
             type="button"
             className="collection-card"
-            onClick={() => handleOpenCollection(collection.id)}
+            onClick={() => openCollection(collection.id)}
           >
             <span className="collection-card__name">{collection.name}</span>
             {collection.description ? (

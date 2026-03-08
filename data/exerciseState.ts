@@ -17,6 +17,17 @@ export type PersistedAppState = {
   seedSignature?: string;
   exercisesById: Record<string, PersistedExerciseState>;
   setChecksByExercise: Record<string, boolean[]>;
+  activeCollectionId?: string | null;
+  activeExerciseIndex?: number;
+  activeView?: "exercise-list" | "exercise-card";
+};
+
+export type NavigationView = "collections" | "exercise-list" | "exercise-card";
+
+export type NavigationState = {
+  view: NavigationView;
+  activeCollectionId: string | null;
+  activeExerciseIndex: number;
 };
 
 const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
@@ -116,6 +127,11 @@ export const buildPersistenceState = (
   exerciseState: RuntimeExercise[],
   setChecksByExercise: Record<string, boolean[]>,
   seedSignature: string,
+  navigation: {
+    activeCollectionId: string | null;
+    activeExerciseIndex: number;
+    activeView: "exercise-list" | "exercise-card";
+  },
 ): PersistedAppState => ({
   seedSignature,
   exercisesById: Object.fromEntries(
@@ -130,4 +146,49 @@ export const buildPersistenceState = (
     ]),
   ),
   setChecksByExercise,
+  activeCollectionId: navigation.activeCollectionId,
+  activeExerciseIndex: navigation.activeExerciseIndex,
+  activeView: navigation.activeView,
 });
+
+export const restoreNavigationState = (
+  savedState: PersistedAppState | null,
+  collectionIds: string[],
+  exercises: RuntimeExercise[],
+): NavigationState => {
+  const collectionId = savedState?.activeCollectionId;
+
+  if (!collectionId || !collectionIds.includes(collectionId)) {
+    return {
+      view: "collections",
+      activeCollectionId: null,
+      activeExerciseIndex: 0,
+    };
+  }
+
+  const collectionExerciseCount = exercises.filter(
+    (exercise) => exercise.collectionId === collectionId,
+  ).length;
+
+  if (collectionExerciseCount < 1) {
+    return {
+      view: "exercise-list",
+      activeCollectionId: collectionId,
+      activeExerciseIndex: 0,
+    };
+  }
+
+  const rawIndex = savedState?.activeExerciseIndex;
+  const normalizedIndex =
+    typeof rawIndex === "number" && Number.isFinite(rawIndex)
+      ? Math.max(0, Math.floor(rawIndex))
+      : 0;
+  const clampedIndex = Math.min(normalizedIndex, collectionExerciseCount - 1);
+  const savedView = savedState?.activeView;
+
+  return {
+    view: savedView === "exercise-card" ? "exercise-card" : "exercise-list",
+    activeCollectionId: collectionId,
+    activeExerciseIndex: clampedIndex,
+  };
+};

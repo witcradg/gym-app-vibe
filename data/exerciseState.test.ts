@@ -4,6 +4,7 @@ import {
   buildPersistenceState,
   createSeedExercises,
   mergeExerciseState,
+  restoreNavigationState,
 } from "./exerciseState";
 
 describe("exerciseState model and persistence", () => {
@@ -71,7 +72,11 @@ describe("exerciseState model and persistence", () => {
       setChecksByExercise: {},
     });
 
-    const persisted = buildPersistenceState(hydrated, { "e-1": [] }, "sig");
+    const persisted = buildPersistenceState(hydrated, { "e-1": [] }, "sig", {
+      activeCollectionId: "c-1",
+      activeExerciseIndex: 0,
+      activeView: "exercise-card",
+    });
     const roundTrip = JSON.parse(JSON.stringify(persisted)) as typeof persisted;
 
     expect(hydrated[0].sets).toBe(5);
@@ -112,5 +117,58 @@ describe("exerciseState model and persistence", () => {
     expect(hydrated[0].weight).toBe("7.5");
     expect(typeof hydrated[0].reps).toBe("string");
     expect(typeof hydrated[0].weight).toBe("string");
+  });
+
+  it("restores clamped exercise-card navigation from persisted state", () => {
+    const runtime = createSeedExercises([
+      {
+        id: "e-1",
+        collectionId: "c-1",
+        name: "A",
+        order: 1,
+        sets: 2,
+      },
+      {
+        id: "e-2",
+        collectionId: "c-1",
+        name: "B",
+        order: 2,
+        sets: 2,
+      },
+    ]);
+
+    const navigation = restoreNavigationState(
+      {
+        exercisesById: {},
+        setChecksByExercise: {},
+        activeCollectionId: "c-1",
+        activeExerciseIndex: 99,
+        activeView: "exercise-card",
+      },
+      ["c-1"],
+      runtime,
+    );
+
+    expect(navigation.view).toBe("exercise-card");
+    expect(navigation.activeCollectionId).toBe("c-1");
+    expect(navigation.activeExerciseIndex).toBe(1);
+  });
+
+  it("falls back to collections when persisted collection is invalid", () => {
+    const navigation = restoreNavigationState(
+      {
+        exercisesById: {},
+        setChecksByExercise: {},
+        activeCollectionId: "missing",
+        activeExerciseIndex: 3,
+        activeView: "exercise-card",
+      },
+      ["c-1"],
+      [],
+    );
+
+    expect(navigation.view).toBe("collections");
+    expect(navigation.activeCollectionId).toBeNull();
+    expect(navigation.activeExerciseIndex).toBe(0);
   });
 });
