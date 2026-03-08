@@ -8,127 +8,25 @@ import {
   type TouchEventHandler,
 } from "react";
 import { collections } from "../data/collections";
-import { exercises, type Exercise } from "../data/exercises";
+import { exercises } from "../data/exercises";
+import {
+  buildInitialSetChecks,
+  buildPersistenceState,
+  buildSetChecksState,
+  createSeedExercises,
+  mergeExerciseState,
+} from "../data/exerciseState";
+import type { PersistedAppState } from "../data/exerciseState";
 
 const STORAGE_KEY = "gym-app-v1-state";
 const EXERCISE_SEED_SIGNATURE = JSON.stringify(exercises);
-
-type RuntimeExercise = {
-  id: string;
-  collectionId: string;
-  name: string;
-  order: number;
-  sets: number;
-  reps: string;
-  weight: string;
-  notes: string;
-};
-
-type PersistedExerciseState = {
-  notes: string;
-  sets: number;
-  reps: string;
-  weight: string;
-};
-
-type PersistedAppState = {
-  seedSignature?: string;
-  exercisesById: Record<string, PersistedExerciseState>;
-  setChecksByExercise: Record<string, boolean[]>;
-};
-
-const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const nextValue = Math.floor(value);
-    return nextValue >= 1 ? nextValue : fallback;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isNaN(parsed) && parsed >= 1) {
-      return parsed;
-    }
-  }
-
-  return fallback;
-};
-
-const toStringFromValue = (value: unknown, fallback: string) => {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  // Backward compatibility for older numeric saved data.
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-
-  return fallback;
-};
-
-const seedExercises: RuntimeExercise[] = exercises.map((exercise: Exercise) => ({
-  ...exercise,
-  sets: toPositiveIntFromSeed(exercise.sets, 1),
-  reps: toStringFromValue(exercise.reps, ""),
-  weight: toStringFromValue(exercise.weight, ""),
-  notes: toStringFromValue(exercise.notes, ""),
-}));
-
-const toPositiveInt = (value: unknown, fallback: number) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
-  }
-
-  const nextValue = Math.floor(value);
-  return nextValue >= 1 ? nextValue : fallback;
-};
-
-const mergeExerciseState = (savedState: PersistedAppState | null) =>
-  seedExercises.map((exercise) => {
-    const savedExercise = savedState?.exercisesById[exercise.id];
-
-    if (!savedExercise) {
-      return exercise;
-    }
-
-    return {
-      ...exercise,
-      notes:
-        typeof savedExercise.notes === "string"
-          ? savedExercise.notes
-          : exercise.notes,
-      sets: toPositiveInt(savedExercise.sets, exercise.sets),
-      reps: toStringFromValue(savedExercise.reps, exercise.reps),
-      weight: toStringFromValue(savedExercise.weight, exercise.weight),
-    };
-  });
-
-const buildSetChecksState = (
-  currentExercises: RuntimeExercise[],
-  savedState: PersistedAppState | null,
-) =>
-  Object.fromEntries(
-    currentExercises.map((exercise) => {
-      const savedSetChecks = savedState?.setChecksByExercise[exercise.id];
-      const normalizedSetChecks = Array.from({ length: exercise.sets }, (_, index) =>
-        Boolean(savedSetChecks?.[index]),
-      );
-
-      return [exercise.id, normalizedSetChecks];
-    }),
-  );
-
-const buildInitialSetChecks = () =>
-  Object.fromEntries(
-    seedExercises.map((exercise) => [
-      exercise.id,
-      Array.from({ length: exercise.sets }, () => false),
-    ]),
-  );
+const seedExercises = createSeedExercises(exercises);
 
 export default function Home() {
   const [exerciseState, setExerciseState] = useState(seedExercises);
-  const [setChecksByExercise, setSetChecksByExercise] = useState(buildInitialSetChecks);
+  const [setChecksByExercise, setSetChecksByExercise] = useState(() =>
+    buildInitialSetChecks(seedExercises),
+  );
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(
     null,
   );
@@ -197,7 +95,7 @@ export default function Home() {
         return;
       }
 
-      const mergedExercises = mergeExerciseState(savedState);
+      const mergedExercises = mergeExerciseState(seedExercises, savedState);
       const mergedSetChecks = buildSetChecksState(mergedExercises, savedState);
 
       setExerciseState(mergedExercises);
@@ -214,21 +112,11 @@ export default function Home() {
       return;
     }
 
-    const persistenceState: PersistedAppState = {
-      seedSignature: EXERCISE_SEED_SIGNATURE,
-      exercisesById: Object.fromEntries(
-        exerciseState.map((exercise) => [
-          exercise.id,
-          {
-            notes: exercise.notes,
-            sets: exercise.sets,
-            reps: exercise.reps,
-            weight: exercise.weight,
-          },
-        ]),
-      ),
+    const persistenceState = buildPersistenceState(
+      exerciseState,
       setChecksByExercise,
-    };
+      EXERCISE_SEED_SIGNATURE,
+    );
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persistenceState));
   }, [exerciseState, setChecksByExercise]);
