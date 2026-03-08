@@ -1,3 +1,11 @@
+/**
+ * SOURCE OF TRUTH
+ *
+ * This file defines the canonical Exercise model used throughout the app.
+ *
+ * Documentation and agents should reference this file rather than duplicating
+ * the type definition in docs.
+ */
 export type Exercise = {
   id: string;
   collectionId: string;
