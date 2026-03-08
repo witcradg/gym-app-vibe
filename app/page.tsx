@@ -8,7 +8,7 @@ import {
   type TouchEventHandler,
 } from "react";
 import { collections } from "../data/collections";
-import { exercises } from "../data/exercises";
+import { exercises, type Exercise } from "../data/exercises";
 
 const STORAGE_KEY = "gym-app-v1-state";
 const EXERCISE_SEED_SIGNATURE = JSON.stringify(exercises);
@@ -19,16 +19,16 @@ type RuntimeExercise = {
   name: string;
   order: number;
   sets: number;
-  reps: number;
-  weight: number;
+  reps: string;
+  weight: string;
   notes: string;
 };
 
 type PersistedExerciseState = {
   notes: string;
   sets: number;
-  reps: number;
-  weight: number;
+  reps: string;
+  weight: string;
 };
 
 type PersistedAppState = {
@@ -53,28 +53,25 @@ const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
   return fallback;
 };
 
-const toNonNegativeIntFromSeed = (value: unknown, fallback: number) => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    const nextValue = Math.floor(value);
-    return nextValue >= 0 ? nextValue : fallback;
+const toStringFromValue = (value: unknown, fallback: string) => {
+  if (typeof value === "string") {
+    return value;
   }
 
-  if (typeof value === "string") {
-    const parsed = Number.parseInt(value, 10);
-    if (!Number.isNaN(parsed) && parsed >= 0) {
-      return parsed;
-    }
+  // Backward compatibility for older numeric saved data.
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
   }
 
   return fallback;
 };
 
-const seedExercises: RuntimeExercise[] = exercises.map((exercise) => ({
+const seedExercises: RuntimeExercise[] = exercises.map((exercise: Exercise) => ({
   ...exercise,
   sets: toPositiveIntFromSeed(exercise.sets, 1),
-  reps: toPositiveIntFromSeed(exercise.reps, 10),
-  weight: toNonNegativeIntFromSeed(exercise.weight, 0),
-  notes: typeof exercise.notes === "string" ? exercise.notes : "",
+  reps: toStringFromValue(exercise.reps, ""),
+  weight: toStringFromValue(exercise.weight, ""),
+  notes: toStringFromValue(exercise.notes, ""),
 }));
 
 const toPositiveInt = (value: unknown, fallback: number) => {
@@ -84,15 +81,6 @@ const toPositiveInt = (value: unknown, fallback: number) => {
 
   const nextValue = Math.floor(value);
   return nextValue >= 1 ? nextValue : fallback;
-};
-
-const toNonNegativeInt = (value: unknown, fallback: number) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
-  }
-
-  const nextValue = Math.floor(value);
-  return nextValue >= 0 ? nextValue : fallback;
 };
 
 const mergeExerciseState = (savedState: PersistedAppState | null) =>
@@ -110,8 +98,8 @@ const mergeExerciseState = (savedState: PersistedAppState | null) =>
           ? savedExercise.notes
           : exercise.notes,
       sets: toPositiveInt(savedExercise.sets, exercise.sets),
-      reps: toPositiveInt(savedExercise.reps, exercise.reps),
-      weight: toNonNegativeInt(savedExercise.weight, exercise.weight),
+      reps: toStringFromValue(savedExercise.reps, exercise.reps),
+      weight: toStringFromValue(savedExercise.weight, exercise.weight),
     };
   });
 
@@ -279,17 +267,18 @@ export default function Home() {
     field: "sets" | "reps" | "weight",
     value: string,
   ) => {
+    if (field !== "sets") {
+      setExerciseState((currentExercises) =>
+        currentExercises.map((exercise) =>
+          exercise.id === exerciseId ? { ...exercise, [field]: value } : exercise,
+        ),
+      );
+      return;
+    }
+
     const nextValue = Number.parseInt(value, 10);
 
-    if (Number.isNaN(nextValue)) {
-      return;
-    }
-
-    if ((field === "sets" || field === "reps") && nextValue < 1) {
-      return;
-    }
-
-    if (field === "weight" && nextValue < 0) {
+    if (Number.isNaN(nextValue) || nextValue < 1) {
       return;
     }
 
@@ -299,23 +288,21 @@ export default function Home() {
       ),
     );
 
-    if (field === "sets") {
-      setSetChecksByExercise((currentChecks) => {
-        const currentSetChecks = currentChecks[exerciseId] ?? [];
-        const resizedSetChecks =
-          currentSetChecks.length >= nextValue
-            ? currentSetChecks.slice(0, nextValue)
-            : [
-                ...currentSetChecks,
-                ...Array.from({ length: nextValue - currentSetChecks.length }, () => false),
-              ];
+    setSetChecksByExercise((currentChecks) => {
+      const currentSetChecks = currentChecks[exerciseId] ?? [];
+      const resizedSetChecks =
+        currentSetChecks.length >= nextValue
+          ? currentSetChecks.slice(0, nextValue)
+          : [
+              ...currentSetChecks,
+              ...Array.from({ length: nextValue - currentSetChecks.length }, () => false),
+            ];
 
-        return {
-          ...currentChecks,
-          [exerciseId]: resizedSetChecks,
-        };
-      });
-    }
+      return {
+        ...currentChecks,
+        [exerciseId]: resizedSetChecks,
+      };
+    });
   };
 
   const isExerciseComplete = (exerciseId: string, expectedSetCount: number) => {
@@ -463,10 +450,9 @@ export default function Home() {
                 />
                 <span className="plan-adjust-separator">×</span>
                 <input
-                  type="number"
+                  type="text"
                   className="plan-adjust-input"
-                  min={1}
-                  inputMode="numeric"
+                  inputMode="text"
                   value={selectedExercise.reps}
                   onChange={(event) =>
                     handlePlanChange(selectedExercise.id, "reps", event.target.value)
@@ -475,10 +461,9 @@ export default function Home() {
                 />
                 <span className="plan-adjust-separator">@</span>
                 <input
-                  type="number"
+                  type="text"
                   className="plan-adjust-input"
-                  min={0}
-                  inputMode="numeric"
+                  inputMode="text"
                   value={selectedExercise.weight}
                   onChange={(event) =>
                     handlePlanChange(selectedExercise.id, "weight", event.target.value)
