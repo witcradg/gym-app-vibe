@@ -27,6 +27,33 @@ import type {
 const STORAGE_KEY = "gym-app-v1-state";
 const EXERCISE_SEED_SIGNATURE = JSON.stringify(exercises);
 const seedExercises = createSeedExercises(exercises);
+const SWIPE_VERTICAL_MIN_PX = 55;
+const SWIPE_HORIZONTAL_MIN_PX = 75;
+const SWIPE_DIRECTION_RATIO = 1.5;
+
+type SwipeDirection = "horizontal" | "vertical" | null;
+
+const getSwipeDirection = (
+  deltaX: number,
+  deltaY: number,
+): SwipeDirection => {
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+
+  const isHorizontal =
+    absX >= SWIPE_HORIZONTAL_MIN_PX && absX > absY * SWIPE_DIRECTION_RATIO;
+  if (isHorizontal) {
+    return "horizontal";
+  }
+
+  const isVertical =
+    absY >= SWIPE_VERTICAL_MIN_PX && absY > absX * SWIPE_DIRECTION_RATIO;
+  if (isVertical) {
+    return "vertical";
+  }
+
+  return null;
+};
 
 export default function Home() {
   const [exerciseState, setExerciseState] = useState(seedExercises);
@@ -354,19 +381,14 @@ export default function Home() {
     const touch = event.changedTouches[0];
     const deltaX = touch.clientX - swipeStart.x;
     const deltaY = touch.clientY - swipeStart.y;
-    const swipeThreshold = 56;
+    const swipeDirection = getSwipeDirection(deltaX, deltaY);
 
-    const horizontalSwipe =
-      Math.abs(deltaX) >= swipeThreshold && Math.abs(deltaX) > Math.abs(deltaY) * 1.2;
-    const verticalSwipe =
-      Math.abs(deltaY) >= swipeThreshold && Math.abs(deltaY) > Math.abs(deltaX) * 1.2;
-
-    if (horizontalSwipe && deltaX > 0) {
+    if (swipeDirection === "horizontal" && deltaX > 0) {
       navigateToExerciseList();
       return;
     }
 
-    if (!verticalSwipe) {
+    if (swipeDirection !== "vertical") {
       return;
     }
 
@@ -394,12 +416,9 @@ export default function Home() {
     const touch = event.changedTouches[0];
     const deltaX = touch.clientX - swipeStart.x;
     const deltaY = touch.clientY - swipeStart.y;
-    const swipeThreshold = 56;
+    const swipeDirection = getSwipeDirection(deltaX, deltaY);
 
-    if (
-      deltaX > swipeThreshold &&
-      Math.abs(deltaX) > Math.abs(deltaY) * 1.2
-    ) {
+    if (swipeDirection === "horizontal" && deltaX > 0) {
       navigateToCollections();
     }
   };
