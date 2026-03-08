@@ -66,6 +66,7 @@ export default function Home() {
   );
   const [activeExerciseIndex, setActiveExerciseIndex] = useState(0);
   const [isAdjustingPlan, setIsAdjustingPlan] = useState(false);
+  const [isJumpMenuOpen, setIsJumpMenuOpen] = useState(false);
   const [showResetFeedback, setShowResetFeedback] = useState(false);
   const hasLoadedPersistenceRef = useRef(false);
   const resetFeedbackTimerRef = useRef<number | null>(null);
@@ -222,6 +223,7 @@ export default function Home() {
     setActiveExerciseIndex(0);
     setView("exercise-list");
     setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
     setShowResetFeedback(false);
   };
 
@@ -231,6 +233,7 @@ export default function Home() {
     setActiveCollectionId(null);
     setActiveExerciseIndex(0);
     setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
     setShowResetFeedback(false);
   };
 
@@ -239,12 +242,14 @@ export default function Home() {
     setActiveExerciseIndex(exerciseIndex);
     setView("exercise-card");
     setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
   };
 
   const navigateToExerciseList = () => {
     persistNow();
     setView("exercise-list");
     setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
   };
 
   const handleChangeNote = (exerciseId: string, notes: string) => {
@@ -357,6 +362,18 @@ export default function Home() {
     persistNow();
     setActiveExerciseIndex(nextIndex);
     setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
+  };
+
+  const jumpToExerciseIndex = (nextIndex: number) => {
+    if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
+      return;
+    }
+
+    persistNow();
+    setActiveExerciseIndex(nextIndex);
+    setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
   };
 
   const handleExerciseCardTouchStart: TouchEventHandler<HTMLElement> = (event) => {
@@ -366,7 +383,9 @@ export default function Home() {
     cardSwipeStartRef.current = {
       x: touch.clientX,
       y: touch.clientY,
-      isBlocked: Boolean(target.closest("textarea, input, button")),
+      isBlocked: Boolean(
+        target.closest("textarea, input, button, .exercise-jump-overlay"),
+      ),
     };
   };
 
@@ -427,6 +446,9 @@ export default function Home() {
     view === "exercise-card" ? orderedExercises[activeExerciseIndex] ?? null : null;
 
   if (view === "exercise-card" && selectedCollection && activeExercise) {
+    const currentExercisePosition = activeExerciseIndex + 1;
+    const totalExercises = orderedExercises.length;
+
     return (
       <main className="home">
         <section
@@ -441,6 +463,15 @@ export default function Home() {
             onClick={navigateToExerciseList}
           >
             Back to list
+          </button>
+
+          <button
+            type="button"
+            className="exercise-progress-button"
+            onClick={() => setIsJumpMenuOpen(true)}
+            aria-label="Open exercise jump menu"
+          >
+            {currentExercisePosition} / {totalExercises}
           </button>
 
           <div className="exercise-expanded__header">
@@ -518,6 +549,45 @@ export default function Home() {
               </label>
             ))}
           </div>
+
+          {isJumpMenuOpen ? (
+            <div
+              className="exercise-jump-overlay"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Jump to exercise"
+            >
+              <div className="exercise-jump-sheet">
+                <div className="exercise-jump-sheet__header">
+                  <p className="exercise-jump-sheet__title">Jump to exercise</p>
+                  <button
+                    type="button"
+                    className="exercise-jump-sheet__close"
+                    onClick={() => setIsJumpMenuOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="exercise-jump-list">
+                  {orderedExercises.map((exercise, index) => (
+                    <button
+                      key={exercise.id}
+                      type="button"
+                      className={`exercise-jump-item${
+                        index === activeExerciseIndex ? " is-active" : ""
+                      }`}
+                      onClick={() => jumpToExerciseIndex(index)}
+                    >
+                      <span className="exercise-jump-item__position">
+                        {index + 1}.
+                      </span>
+                      <span className="exercise-jump-item__name">{exercise.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
     );
