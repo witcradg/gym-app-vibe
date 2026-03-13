@@ -3,7 +3,7 @@
 import type { PersistedAppState } from "../../data/exerciseState";
 import { createAdminClient } from "../supabase";
 
-const WORKOUT_APP_STATE_ID = "workout-app-state";
+const GYM_APP_STATE_ROW_ID = "gym-app-state";
 
 type WorkoutAppStateRow = {
   id: string;
@@ -19,9 +19,9 @@ export async function fetchWorkoutAppState(): Promise<PersistedAppState | null> 
   }
 
   const { data, error } = await client
-    .from("app_state")
+    .from("gym_app_state")
     .select("id, state, updated_at")
-    .eq("id", WORKOUT_APP_STATE_ID)
+    .eq("id", GYM_APP_STATE_ROW_ID)
     .maybeSingle();
 
   if (error) {
@@ -44,14 +44,37 @@ export async function saveWorkoutAppState(
     };
   }
 
-  const { error } = await client.from("app_state").upsert(
+  const { error } = await client.from("gym_app_state").upsert(
     {
-      id: WORKOUT_APP_STATE_ID,
+      id: GYM_APP_STATE_ROW_ID,
       state,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "id" },
   );
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
+export async function deleteWorkoutAppState(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
+  const { client, error: configError } = createAdminClient();
+  if (!client || configError) {
+    return {
+      ok: false,
+      error: configError ?? "Supabase admin credentials are not set.",
+    };
+  }
+
+  const { error } = await client
+    .from("gym_app_state")
+    .delete()
+    .eq("id", GYM_APP_STATE_ROW_ID);
 
   if (error) {
     return { ok: false, error: error.message };
