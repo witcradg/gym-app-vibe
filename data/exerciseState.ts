@@ -1,4 +1,4 @@
-import type { Exercise } from "./exercises";
+import type { Exercise } from "../types/exercise";
 
 export type RuntimeExercise = Omit<Exercise, "reps" | "weight" | "notes"> & {
   reps: string;

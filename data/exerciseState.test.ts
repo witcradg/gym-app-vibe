@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Exercise } from "./exercises";
+import type { Exercise } from "../types/exercise";
 import {
   buildPersistenceState,
   createSeedExercises,

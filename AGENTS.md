@@ -104,7 +104,7 @@ When fixing bugs or changing behavior involving logic, state, persistence, or do
 
 The canonical exercise data model is defined in:
 
-data/exercises.ts
+types/exercise.ts
 
 Agents and documentation must treat this file as the authoritative definition of the Exercise structure.
 Do not redefine the model in documentation.

@@ -28,7 +28,7 @@ This is a small personal project, so the workflow prioritizes:
 
 The canonical exercise data model is defined in:
 
-data/exercises.ts
+types/exercise.ts
 
 Agents and documentation must treat this file as the authoritative definition of the Exercise structure.
 Do not redefine the model in documentation.
