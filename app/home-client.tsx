@@ -10,6 +10,10 @@ import {
 } from "react";
 import { persistGymWorkoutAppState } from "./actions/workout-app-state";
 import { sortCollectionsForDisplay } from "../lib/collection-utils";
+import {
+  buildExerciseEditPatch,
+  hasExerciseEditPatch,
+} from "../lib/exercise-edit-patch";
 import type { Collection } from "../types/collection";
 import type { Exercise } from "../types/exercise";
 import {
@@ -59,6 +63,12 @@ const completionUi = {
   "in-progress": { symbol: "◐", label: "In progress" },
   complete: { symbol: "✓", label: "Complete" },
 } as const;
+
+type ExerciseSaveState = {
+  exerciseId: string;
+  kind: "error" | "success";
+  message: string;
+} | null;
 
 type HomeClientProps = {
   collections: Collection[];
@@ -121,12 +131,33 @@ export default function HomeClient({
   const hasMountedRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const resetFeedbackTimerRef = useRef<number | null>(null);
+  const exerciseSaveFeedbackTimerRef = useRef<number | null>(null);
   const cardSwipeStartRef = useRef<{
     x: number;
     y: number;
     isBlocked: boolean;
   } | null>(null);
   const listSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const savedEditableStateRef = useRef(
+    Object.fromEntries(
+      initialExerciseState.map((exercise) => [
+        exercise.id,
+        {
+          notes: exercise.notes,
+          reps: exercise.reps,
+          sets: exercise.sets,
+          weight: exercise.weight,
+        },
+      ]),
+    ),
+  );
+  const adjustStartStateRef = useRef<{
+    exerciseId: string;
+    reps: string;
+    sets: number;
+    weight: string;
+  } | null>(null);
+  const [exerciseSaveState, setExerciseSaveState] = useState<ExerciseSaveState>(null);
 
   const selectedCollection = useMemo(
     () =>
@@ -193,6 +224,10 @@ export default function HomeClient({
       if (persistTimerRef.current) {
         window.clearTimeout(persistTimerRef.current);
       }
+
+      if (exerciseSaveFeedbackTimerRef.current) {
+        window.clearTimeout(exerciseSaveFeedbackTimerRef.current);
+      }
     },
     [],
   );
@@ -257,6 +292,41 @@ export default function HomeClient({
     );
   };
 
+  const queueExerciseSaveFeedback = (
+    exerciseId: string,
+    kind: "error" | "success",
+    message: string,
+  ) => {
+    setExerciseSaveState({ exerciseId, kind, message });
+
+    if (exerciseSaveFeedbackTimerRef.current) {
+      window.clearTimeout(exerciseSaveFeedbackTimerRef.current);
+    }
+
+    exerciseSaveFeedbackTimerRef.current = window.setTimeout(() => {
+      setExerciseSaveState(null);
+      exerciseSaveFeedbackTimerRef.current = null;
+    }, 1800);
+  };
+
+  const persistExercisePatch = async (
+    exerciseId: string,
+    patch: Record<string, string | number>,
+  ) => {
+    const response = await fetch(`/api/exercises/${exerciseId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(patch),
+    });
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+
+    if (!response.ok) {
+      throw new Error(payload?.error || "Failed to save exercise changes.");
+    }
+  };
+
   const handleToggleSet = (exerciseId: string, setIndex: number) => {
     setSetChecksByExercise((currentChecks) => {
       const nextSetChecks = [...(currentChecks[exerciseId] ?? [])];
@@ -310,6 +380,122 @@ export default function HomeClient({
         [exerciseId]: resizedSetChecks,
       };
     });
+  };
+
+  const handleAdjustToggle = async () => {
+    if (!activeExercise) {
+      return;
+    }
+
+    if (!isAdjustingPlan) {
+      adjustStartStateRef.current = {
+        exerciseId: activeExercise.id,
+        reps: activeExercise.reps,
+        sets: activeExercise.sets,
+        weight: activeExercise.weight,
+      };
+      setIsAdjustingPlan(true);
+      return;
+    }
+
+    const startState = adjustStartStateRef.current;
+    setIsAdjustingPlan(false);
+    adjustStartStateRef.current = null;
+
+    if (!startState || startState.exerciseId !== activeExercise.id) {
+      return;
+    }
+
+    const patch = buildExerciseEditPatch(
+      {
+        notes: activeExercise.notes,
+        reps: startState.reps,
+        sets: startState.sets,
+        weight: startState.weight,
+      },
+      {
+        notes: activeExercise.notes,
+        reps: activeExercise.reps,
+        sets: activeExercise.sets,
+        weight: activeExercise.weight,
+      },
+    );
+
+    delete patch.notes;
+
+    if (!hasExerciseEditPatch(patch)) {
+      return;
+    }
+
+    try {
+      await persistExercisePatch(activeExercise.id, patch);
+      savedEditableStateRef.current[activeExercise.id] = {
+        notes: savedEditableStateRef.current[activeExercise.id]?.notes ?? activeExercise.notes,
+        reps: activeExercise.reps,
+        sets: activeExercise.sets,
+        weight: activeExercise.weight,
+      };
+      queueExerciseSaveFeedback(activeExercise.id, "success", "Plan saved");
+    } catch (error) {
+      queueExerciseSaveFeedback(
+        activeExercise.id,
+        "error",
+        error instanceof Error ? error.message : "Failed to save plan changes.",
+      );
+    }
+  };
+
+  const handleSaveNotes = async () => {
+    if (!activeExercise) {
+      return;
+    }
+
+    const previous = savedEditableStateRef.current[activeExercise.id] ?? {
+      notes: "",
+      reps: activeExercise.reps,
+      sets: activeExercise.sets,
+      weight: activeExercise.weight,
+    };
+    const patch = buildExerciseEditPatch(previous, {
+      notes: activeExercise.notes,
+      reps: previous.reps,
+      sets: previous.sets,
+      weight: previous.weight,
+    });
+
+    if (typeof patch.notes !== "string") {
+      return;
+    }
+
+    try {
+      await persistExercisePatch(activeExercise.id, { notes: patch.notes });
+      savedEditableStateRef.current[activeExercise.id] = {
+        ...previous,
+        notes: activeExercise.notes,
+      };
+      queueExerciseSaveFeedback(activeExercise.id, "success", "Notes saved");
+    } catch (error) {
+      queueExerciseSaveFeedback(
+        activeExercise.id,
+        "error",
+        error instanceof Error ? error.message : "Failed to save notes.",
+      );
+    }
+  };
+
+  const handleRevertNotes = () => {
+    if (!activeExercise) {
+      return;
+    }
+
+    const savedNotes = savedEditableStateRef.current[activeExercise.id]?.notes ?? "";
+
+    setExerciseState((currentExercises) =>
+      currentExercises.map((exercise) =>
+        exercise.id === activeExercise.id ? { ...exercise, notes: savedNotes } : exercise,
+      ),
+    );
+    setExerciseSaveState(null);
   };
 
   const isExerciseComplete = (exerciseId: string, expectedSetCount: number) =>
@@ -435,6 +621,11 @@ export default function HomeClient({
 
   const activeExercise =
     view === "exercise-card" ? orderedExercises[activeExerciseIndex] ?? null : null;
+  const notesDirty =
+    activeExercise != null
+      ? activeExercise.notes !==
+        (savedEditableStateRef.current[activeExercise.id]?.notes ?? "")
+      : false;
 
   if (view === "exercise-card" && selectedCollection && activeExercise) {
     const currentExercisePosition = activeExerciseIndex + 1;
@@ -485,11 +676,20 @@ export default function HomeClient({
               <button
                 type="button"
                 className="adjust-button"
-                onClick={() => setIsAdjustingPlan((currentValue) => !currentValue)}
+                onClick={() => void handleAdjustToggle()}
               >
                 {isAdjustingPlan ? "Done" : "Adjust"}
               </button>
             </div>
+            {exerciseSaveState?.exerciseId === activeExercise.id ? (
+              <p
+                className={`exercise-save-feedback exercise-save-feedback--${exerciseSaveState.kind}`}
+                role="status"
+                aria-live="polite"
+              >
+                {exerciseSaveState.message}
+              </p>
+            ) : null}
           </div>
 
           {isAdjustingPlan ? (
@@ -537,6 +737,28 @@ export default function HomeClient({
             rows={4}
             aria-label="Exercise notes"
           />
+
+          {notesDirty ? (
+            <div className="notes-actions">
+              <p className="notes-unsaved">Unsaved changes</p>
+              <div className="notes-actions__buttons">
+                <button
+                  type="button"
+                  className="reset-button"
+                  onClick={handleRevertNotes}
+                >
+                  Revert
+                </button>
+                <button
+                  type="button"
+                  className="reset-button reset-button--primary"
+                  onClick={() => void handleSaveNotes()}
+                >
+                  Save Notes
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="set-placeholder-list" aria-label="Set list">
             {Array.from({ length: activeExercise.sets }, (_, index) => (
