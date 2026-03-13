@@ -5,6 +5,7 @@ export type CollectionRecordFields = {
   "Collection ID": string;
   Name: string;
   Description?: string;
+  Order: number;
 };
 
 export type ExerciseRecordFields = {
@@ -30,6 +31,7 @@ export type CollectionRow = {
   id: string;
   name: string;
   description: string | null;
+  order_index: number;
 };
 
 export type ExerciseRow = {

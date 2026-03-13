@@ -13,6 +13,7 @@ type CollectionDraft = {
   id: string;
   name: string;
   description: string;
+  order: number;
 };
 
 type ExerciseDraft = {
@@ -31,7 +32,13 @@ type RequestError = {
 };
 
 const sortCollections = (collections: Collection[]) =>
-  [...collections].sort((left, right) => left.name.localeCompare(right.name));
+  [...collections].sort((left, right) => {
+    if (left.order !== right.order) {
+      return left.order - right.order;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
 
 const sortExercises = (exercises: Exercise[]) =>
   [...exercises].sort((left, right) => {
@@ -46,6 +53,7 @@ const collectionToDraft = (collection: Collection): CollectionDraft => ({
   id: collection.id,
   name: collection.name,
   description: collection.description ?? "",
+  order: collection.order,
 });
 
 const exerciseToDraft = (exercise: Exercise): ExerciseDraft => ({
@@ -157,13 +165,9 @@ export default function AdminWorkoutsPage() {
       return;
     }
 
-    setSelectedExerciseId(collectionExercises[0]?.id ?? null);
-
-    if (exerciseEditorMode === "edit") {
-      const nextExercise = collectionExercises[0];
-      setExerciseDraft(nextExercise ? exerciseToDraft(nextExercise) : null);
-      setExerciseEditorMode(nextExercise ? "edit" : null);
-    }
+    setSelectedExerciseId(null);
+    setExerciseDraft(null);
+    setExerciseEditorMode(null);
   }, [collectionExercises, exerciseEditorMode, selectedCollectionId, selectedExerciseId]);
 
   const clearMessages = () => {
@@ -174,6 +178,9 @@ export default function AdminWorkoutsPage() {
   const handleSelectCollection = (collectionId: string) => {
     clearMessages();
     setSelectedCollectionId(collectionId);
+    setSelectedExerciseId(null);
+    setExerciseDraft(null);
+    setExerciseEditorMode(null);
     setCollectionEditorMode("edit");
 
     const collection = collections.find((item) => item.id === collectionId) ?? null;
@@ -182,11 +189,21 @@ export default function AdminWorkoutsPage() {
 
   const handleCreateCollection = () => {
     clearMessages();
+    const nextCollectionId = crypto.randomUUID();
+    setSelectedCollectionId(nextCollectionId);
+    setSelectedExerciseId(null);
+    setExerciseDraft(null);
+    setExerciseEditorMode(null);
     setCollectionEditorMode("create");
     setCollectionDraft({
-      id: crypto.randomUUID(),
+      id: nextCollectionId,
       name: "",
       description: "",
+      order:
+        collections.reduce(
+          (currentMax, collection) => Math.max(currentMax, collection.order),
+          0,
+        ) + 1,
     });
   };
 
@@ -269,6 +286,11 @@ export default function AdminWorkoutsPage() {
       return;
     }
 
+    if (!Number.isInteger(collectionDraft.order) || collectionDraft.order < 1) {
+      setErrorMessage("Display order must be an integer greater than or equal to 1.");
+      return;
+    }
+
     clearMessages();
     setBusy(true);
 
@@ -288,6 +310,7 @@ export default function AdminWorkoutsPage() {
           id: collectionDraft.id,
           name: collectionDraft.name,
           description: collectionDraft.description,
+          order: collectionDraft.order,
         }),
       });
 
@@ -301,6 +324,7 @@ export default function AdminWorkoutsPage() {
         id: collectionDraft.id,
         name: collectionDraft.name.trim(),
         description: collectionDraft.description.trim() || undefined,
+        order: collectionDraft.order,
       };
       const nextCollections = sortCollections([
         ...collections.filter((collection) => collection.id !== nextCollection.id),
@@ -309,6 +333,9 @@ export default function AdminWorkoutsPage() {
 
       setCollections(nextCollections);
       setSelectedCollectionId(nextCollection.id);
+      setSelectedExerciseId(null);
+      setExerciseDraft(null);
+      setExerciseEditorMode(null);
       setCollectionDraft(collectionToDraft(nextCollection));
       setCollectionEditorMode("edit");
       setStatusMessage(isCreate ? "Collection created." : "Collection updated.");
@@ -346,6 +373,7 @@ export default function AdminWorkoutsPage() {
     setExerciseDraft(draft);
     setExerciseEditorMode("create");
     setSelectedExerciseId(draft.id);
+    setCollectionEditorMode(null);
   };
 
   const handleSelectExercise = (exerciseId: string) => {
@@ -355,6 +383,7 @@ export default function AdminWorkoutsPage() {
     setSelectedExerciseId(exerciseId);
     setExerciseEditorMode(exercise ? "edit" : null);
     setExerciseDraft(exercise ? exerciseToDraft(exercise) : null);
+    setCollectionEditorMode(null);
   };
 
   const handleDeleteExercise = async (exerciseId?: string) => {
@@ -388,6 +417,8 @@ export default function AdminWorkoutsPage() {
         setSelectedExerciseId(null);
         setExerciseEditorMode(null);
         setExerciseDraft(null);
+        setCollectionEditorMode(selectedCollection ? "edit" : null);
+        setCollectionDraft(selectedCollection ? collectionToDraft(selectedCollection) : null);
       }
 
       setStatusMessage("Exercise deleted.");
@@ -479,6 +510,7 @@ export default function AdminWorkoutsPage() {
       setSelectedExerciseId(nextExercise.id);
       setExerciseDraft(exerciseToDraft(nextExercise));
       setExerciseEditorMode("edit");
+      setCollectionEditorMode(null);
       setStatusMessage(isCreate ? "Exercise created." : "Exercise updated.");
     } catch (error) {
       setErrorMessage(
@@ -490,10 +522,24 @@ export default function AdminWorkoutsPage() {
   };
 
   const handleCollectionFieldChange = (
-    field: "name" | "description",
+    field: "name" | "description" | "order",
     value: string,
   ) => {
-    setCollectionDraft((current) => (current ? { ...current, [field]: value } : current));
+    setCollectionDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      if (field === "order") {
+        const parsedOrder = Number.parseInt(value, 10);
+        return {
+          ...current,
+          order: Number.isInteger(parsedOrder) ? parsedOrder : 0,
+        };
+      }
+
+      return { ...current, [field]: value };
+    });
   };
 
   const handleExerciseFieldChange = (
@@ -502,6 +548,10 @@ export default function AdminWorkoutsPage() {
   ) => {
     setExerciseDraft((current) => (current ? { ...current, [field]: value } : current));
   };
+
+  const showCollectionEditor =
+    collectionEditorMode === "create" || (selectedCollection && !selectedExerciseId);
+  const showExerciseEditor = Boolean(selectedExerciseId && exerciseDraft);
 
   return (
     <main className="admin-workouts">
@@ -538,34 +588,75 @@ export default function AdminWorkoutsPage() {
         />
 
         <div className="admin-workouts__editor-column">
-          <CollectionEditor
-            mode={collectionEditorMode}
-            draft={collectionDraft}
-            loading={busy}
-            message={collectionEditorMode === "create" ? "Collection id is generated automatically." : null}
-            onChange={handleCollectionFieldChange}
-            onSave={handleSaveCollection}
-            onCancel={() => {
-              setCollectionEditorMode(selectedCollection ? "edit" : null);
-              setCollectionDraft(selectedCollection ? collectionToDraft(selectedCollection) : null);
-            }}
-          />
+          {!selectedCollection && collectionEditorMode !== "create" ? (
+            <section className="admin-card admin-card--empty" aria-label="Selection details">
+              <div className="admin-card__header">
+                <div>
+                  <h3>Details</h3>
+                  <p>Select a collection to manage its exercises.</p>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
-          <ExerciseEditor
-            collections={collections}
-            draft={exerciseDraft}
-            mode={exerciseEditorMode}
-            loading={busy}
-            message={selectedCollection ? `Current collection: ${selectedCollection.name}` : null}
-            onChange={handleExerciseFieldChange}
-            onSave={handleSaveExercise}
-            onDelete={() => void handleDeleteExercise()}
-            onCancel={() => {
-              const selectedExercise = exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
-              setExerciseEditorMode(selectedExercise ? "edit" : null);
-              setExerciseDraft(selectedExercise ? exerciseToDraft(selectedExercise) : null);
-            }}
-          />
+          {showCollectionEditor ? (
+            <CollectionEditor
+              mode={collectionEditorMode}
+              draft={collectionDraft}
+              loading={busy}
+              message={
+                collectionEditorMode === "create"
+                  ? "Collection id is generated automatically."
+                  : null
+              }
+              onChange={handleCollectionFieldChange}
+              onSave={handleSaveCollection}
+              onCancel={() => {
+                if (collectionEditorMode === "create" && !selectedCollection) {
+                  setCollectionEditorMode(null);
+                  setCollectionDraft(null);
+                  setSelectedCollectionId(null);
+                  return;
+                }
+
+                setCollectionEditorMode(selectedCollection ? "edit" : null);
+                setCollectionDraft(
+                  selectedCollection ? collectionToDraft(selectedCollection) : null,
+                );
+              }}
+            />
+          ) : null}
+
+          {showExerciseEditor ? (
+            <ExerciseEditor
+              collections={collections}
+              draft={exerciseDraft}
+              mode={exerciseEditorMode}
+              loading={busy}
+              message={selectedCollection ? `Current collection: ${selectedCollection.name}` : null}
+              onChange={handleExerciseFieldChange}
+              onSave={handleSaveExercise}
+              onDelete={() => void handleDeleteExercise()}
+              onCancel={() => {
+                const selectedExercise =
+                  exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
+
+                if (!selectedExercise) {
+                  setSelectedExerciseId(null);
+                  setExerciseEditorMode(null);
+                  setExerciseDraft(null);
+                  setCollectionEditorMode(selectedCollection ? "edit" : null);
+                  setCollectionDraft(
+                    selectedCollection ? collectionToDraft(selectedCollection) : null,
+                  );
+                  return;
+                }
+
+                setExerciseEditorMode("edit");
+                setExerciseDraft(exerciseToDraft(selectedExercise));
+              }}
+            />
+          ) : null}
         </div>
       </div>
     </main>

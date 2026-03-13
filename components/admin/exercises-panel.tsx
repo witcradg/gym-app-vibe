@@ -48,7 +48,16 @@ export function ExercisesPanel({
       ) : null}
 
       {!loading && selectedCollection && exercises.length < 1 ? (
-        <p className="admin-empty-state">No exercises in this collection yet.</p>
+        <div className="admin-empty-state admin-empty-state--card">
+          <p>No exercises in this collection yet.</p>
+          <button
+            type="button"
+            className="admin-button admin-button--primary"
+            onClick={onCreateExercise}
+          >
+            New Exercise
+          </button>
+        </div>
       ) : null}
 
       {selectedCollection && exercises.length > 0 ? (
@@ -67,8 +76,13 @@ export function ExercisesPanel({
                   className="admin-list-item__content"
                   onClick={() => onSelectExercise(exercise.id)}
                 >
-                  <span className="admin-list-item__title">
-                    {exercise.order}. {exercise.name || "Untitled exercise"}
+                  <span className="admin-list-item__title-row">
+                    <span className="admin-list-item__title">
+                      {exercise.order}. {exercise.name || "Untitled exercise"}
+                    </span>
+                    {isSelected ? (
+                      <span className="admin-list-item__badge">Selected</span>
+                    ) : null}
                   </span>
                   <span className="admin-list-item__meta">
                     {exercise.sets} sets

@@ -14,6 +14,7 @@ const normalizeString = (value: unknown): string | null => {
 
 const parseCollectionPayload = (
   payload: unknown,
+  existingOrder?: number,
 ): CollectionRecordValues | { error: string } => {
   if (!payload || typeof payload !== "object") {
     return { error: "Request body must be an object." };
@@ -22,6 +23,11 @@ const parseCollectionPayload = (
   const id = normalizeString((payload as Record<string, unknown>).id);
   const name = normalizeString((payload as Record<string, unknown>).name);
   const rawDescription = (payload as Record<string, unknown>).description;
+  const rawOrder = (payload as Record<string, unknown>).order;
+  const order =
+    typeof rawOrder === "number" && Number.isInteger(rawOrder) && rawOrder >= 1
+      ? rawOrder
+      : existingOrder;
 
   if (!id) {
     return { error: "Collection id is required." };
@@ -31,9 +37,14 @@ const parseCollectionPayload = (
     return { error: "Collection name is required." };
   }
 
+  if (!order) {
+    return { error: "Collection order is required." };
+  }
+
   return {
     id,
     name,
+    order,
     description:
       typeof rawDescription === "string" ? rawDescription.trim() || undefined : undefined,
   };
@@ -45,7 +56,13 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const payload = parseCollectionPayload(await request.json().catch(() => null));
+  const currentCollections = await fetchCollections();
+  const nextOrder =
+    currentCollections.reduce(
+      (currentMax, collection) => Math.max(currentMax, collection.order),
+      0,
+    ) + 1;
+  const payload = parseCollectionPayload(await request.json().catch(() => null), nextOrder);
 
   if ("error" in payload) {
     return NextResponse.json({ error: payload.error }, { status: 400 });

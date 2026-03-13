@@ -44,12 +44,14 @@ const baseCollection: Collection = {
   id: TEST_COLLECTION_ID,
   name: "Integration Test Collection",
   description: "Created by integration test",
+  order: 9998,
 };
 
 const updatedCollection: Collection = {
   ...baseCollection,
   name: "Integration Test Collection Updated",
   description: "Updated by integration test",
+  order: 9999,
 };
 
 const baseExercise: Exercise = {

@@ -56,6 +56,12 @@ export async function PATCH(
   const result = await upsertCollection({
     id,
     name,
+    order:
+      typeof payload.order === "number" &&
+      Number.isInteger(payload.order) &&
+      payload.order >= 1
+        ? payload.order
+        : existing.order,
     description,
   });
 

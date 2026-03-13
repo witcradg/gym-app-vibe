@@ -42,7 +42,7 @@ export function CollectionsPanel({
           onClick={onEditCollection}
           disabled={!selectedCollection}
         >
-          Edit
+          Edit Collection
         </button>
         <button
           type="button"
@@ -50,7 +50,7 @@ export function CollectionsPanel({
           onClick={onDeleteCollection}
           disabled={!selectedCollection}
         >
-          Delete
+          Delete Collection
         </button>
       </div>
 
@@ -73,7 +73,12 @@ export function CollectionsPanel({
                 className={`admin-list-item${isSelected ? " is-selected" : ""}`}
                 onClick={() => onSelectCollection(collection.id)}
               >
-                <span className="admin-list-item__title">{collection.name}</span>
+                <span className="admin-list-item__title-row">
+                  <span className="admin-list-item__title">{collection.name}</span>
+                  {isSelected ? (
+                    <span className="admin-list-item__badge">Selected</span>
+                  ) : null}
+                </span>
                 <span className="admin-list-item__meta">
                   {collection.description || "No description"}
                 </span>

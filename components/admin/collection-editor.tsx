@@ -2,6 +2,7 @@ type CollectionDraft = {
   id: string;
   name: string;
   description: string;
+  order: number;
 };
 
 type CollectionEditorProps = {
@@ -9,7 +10,7 @@ type CollectionEditorProps = {
   draft: CollectionDraft | null;
   loading: boolean;
   message: string | null;
-  onChange: (field: "name" | "description", value: string) => void;
+  onChange: (field: "name" | "description" | "order", value: string) => void;
   onSave: () => void;
   onCancel: () => void;
 };
@@ -27,7 +28,7 @@ export function CollectionEditor({
     <section className="admin-card" aria-label="Collection editor">
       <div className="admin-card__header">
         <div>
-          <h3>{mode === "create" ? "New Collection" : "Collection Editor"}</h3>
+          <h3>Collection Details</h3>
           <p>
             {mode === "create"
               ? "Create a collection without manually editing the id."
@@ -49,6 +50,18 @@ export function CollectionEditor({
               value={draft.name}
               onChange={(event) => onChange("name", event.target.value)}
               placeholder="Upper Body"
+            />
+          </label>
+
+          <label className="admin-field">
+            <span>Display Order</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={String(draft.order)}
+              onChange={(event) => onChange("order", event.target.value)}
+              placeholder="1"
             />
           </label>
 

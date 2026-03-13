@@ -41,7 +41,7 @@ export function ExerciseEditor({
     <section className="admin-card" aria-label="Exercise editor">
       <div className="admin-card__header">
         <div>
-          <h3>{mode === "create" ? "New Exercise" : "Exercise Editor"}</h3>
+          <h3>Exercise Details</h3>
           <p>
             {mode === "create"
               ? "Create an exercise inside the selected collection."

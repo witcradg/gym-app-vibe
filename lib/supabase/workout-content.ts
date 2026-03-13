@@ -18,6 +18,7 @@ const mapCollectionRow = (row: CollectionRow): Collection => ({
   id: row.id,
   name: row.name,
   description: row.description ?? undefined,
+  order: row.order_index,
 });
 
 const mapExerciseRow = (row: ExerciseRow): Exercise => ({
@@ -35,6 +36,7 @@ const toCollectionRow = (collection: Collection): CollectionRow => ({
   id: collection.id,
   name: collection.name,
   description: collection.description ?? null,
+  order_index: collection.order,
 });
 
 const toExerciseRow = (exercise: Exercise): ExerciseRow => ({
@@ -70,7 +72,8 @@ export async function fetchCollections(): Promise<Collection[]> {
 
   const { data, error: queryError } = await client
     .from("collections")
-    .select("id, name, description")
+    .select("id, name, description, order_index")
+    .order("order_index", { ascending: true })
     .order("name", { ascending: true });
 
   if (queryError) {
@@ -211,7 +214,7 @@ export async function fetchCollectionById(
 
   const { data, error: queryError } = await client
     .from("collections")
-    .select("id, name, description")
+    .select("id, name, description, order_index")
     .eq("id", id)
     .maybeSingle();
 
