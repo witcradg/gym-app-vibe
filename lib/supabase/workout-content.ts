@@ -6,6 +6,7 @@ import type { Exercise } from "../../types/exercise";
 import type {
   CollectionRow,
   CollectionRecordValues,
+  DeleteRecordResult,
   ExerciseRow,
   ExerciseRecordValues,
   UpsertCollectionResult,
@@ -47,20 +48,33 @@ const toExerciseRow = (exercise: Exercise): ExerciseRow => ({
   notes: exercise.notes ?? null,
 });
 
+const getClient = () => {
+  const { client, error } = createAdminClient();
+
+  if (!client || error) {
+    return {
+      client: null,
+      error: error ?? "Supabase admin credentials are not set.",
+    } as const;
+  }
+
+  return { client, error: null } as const;
+};
+
 export async function fetchCollections(): Promise<Collection[]> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    console.error("Supabase collections fetch misconfigured", configError);
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    console.error("Supabase collections fetch misconfigured", clientError);
     return [];
   }
 
-  const { data, error } = await client
+  const { data, error: queryError } = await client
     .from("collections")
     .select("id, name, description")
     .order("name", { ascending: true });
 
-  if (error) {
-    console.error("Supabase collections fetch failed", error);
+  if (queryError) {
+    console.error("Supabase collections fetch failed", queryError);
     return [];
   }
 
@@ -68,20 +82,20 @@ export async function fetchCollections(): Promise<Collection[]> {
 }
 
 export async function fetchExercises(): Promise<Exercise[]> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    console.error("Supabase exercises fetch misconfigured", configError);
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    console.error("Supabase exercises fetch misconfigured", clientError);
     return [];
   }
 
-  const { data, error } = await client
+  const { data, error: queryError } = await client
     .from("exercises")
     .select("id, collection_id, name, order_index, sets, reps, weight, notes")
     .order("collection_id", { ascending: true })
     .order("order_index", { ascending: true });
 
-  if (error) {
-    console.error("Supabase exercises fetch failed", error);
+  if (queryError) {
+    console.error("Supabase exercises fetch failed", queryError);
     return [];
   }
 
@@ -105,9 +119,9 @@ export async function fetchWorkoutContentCounts(): Promise<{
   collectionsCount: number;
   exercisesCount: number;
 }> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    throw new Error(configError ?? "Supabase admin credentials are not set.");
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    throw new Error(clientError ?? "Supabase admin credentials are not set.");
   }
 
   const [{ count: collectionsCount, error: collectionsError }, { count: exercisesCount, error: exercisesError }] =
@@ -133,22 +147,26 @@ export async function fetchWorkoutContentCounts(): Promise<{
 export async function upsertCollection(
   collection: CollectionRecordValues,
 ): Promise<UpsertCollectionResult> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
     return {
       ok: false,
-      error: configError ?? "Supabase admin credentials are not set.",
+      error: clientError ?? "Supabase admin credentials are not set.",
     };
   }
 
-  const { data, error } = await client
+  const { data, error: queryError } = await client
     .from("collections")
     .upsert(toCollectionRow(collection), { onConflict: "id" })
     .select("id")
     .single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Collection upsert returned no data." };
   }
 
   return { ok: true, recordId: data.id };
@@ -157,23 +175,107 @@ export async function upsertCollection(
 export async function upsertExercise(
   exercise: ExerciseRecordValues,
 ): Promise<UpsertExerciseResult> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
     return {
       ok: false,
-      error: configError ?? "Supabase admin credentials are not set.",
+      error: clientError ?? "Supabase admin credentials are not set.",
     };
   }
 
-  const { data, error } = await client
+  const { data, error: queryError } = await client
     .from("exercises")
     .upsert(toExerciseRow(exercise), { onConflict: "id" })
     .select("id")
     .single();
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Exercise upsert returned no data." };
   }
 
   return { ok: true, recordId: data.id };
+}
+
+export async function fetchCollectionById(
+  id: string,
+): Promise<Collection | null> {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    console.error("Supabase collection fetch misconfigured", clientError);
+    return null;
+  }
+
+  const { data, error: queryError } = await client
+    .from("collections")
+    .select("id, name, description")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (queryError) {
+    console.error("Supabase collection fetch failed", queryError);
+    return null;
+  }
+
+  return data ? mapCollectionRow(data as CollectionRow) : null;
+}
+
+export async function fetchExerciseById(id: string): Promise<Exercise | null> {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    console.error("Supabase exercise fetch misconfigured", clientError);
+    return null;
+  }
+
+  const { data, error: queryError } = await client
+    .from("exercises")
+    .select("id, collection_id, name, order_index, sets, reps, weight, notes")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (queryError) {
+    console.error("Supabase exercise fetch failed", queryError);
+    return null;
+  }
+
+  return data ? mapExerciseRow(data as ExerciseRow) : null;
+}
+
+export async function deleteCollection(id: string): Promise<DeleteRecordResult> {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    return {
+      ok: false,
+      error: clientError ?? "Supabase admin credentials are not set.",
+    };
+  }
+
+  const { error: queryError } = await client.from("collections").delete().eq("id", id);
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  return { ok: true };
+}
+
+export async function deleteExercise(id: string): Promise<DeleteRecordResult> {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    return {
+      ok: false,
+      error: clientError ?? "Supabase admin credentials are not set.",
+    };
+  }
+
+  const { error: queryError } = await client.from("exercises").delete().eq("id", id);
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  return { ok: true };
 }

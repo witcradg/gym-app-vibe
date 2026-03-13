@@ -56,3 +56,7 @@ export type UpsertCollectionResult =
 export type UpsertExerciseResult =
   | { ok: true; recordId: string }
   | { ok: false; error: string };
+
+export type DeleteRecordResult =
+  | { ok: true }
+  | { ok: false; error: string };
