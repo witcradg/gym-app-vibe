@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -667,7 +668,12 @@ export default function HomeClient({
   return (
     <main className="home">
       <header className="home__header">
-        <h1>Gym App</h1>
+        <div className="home__title-row">
+          <h1>Gym App</h1>
+          <Link href="/admin/workouts" className="home__manage-link">
+            Manage Content
+          </Link>
+        </div>
         <p>Select a collection.</p>
       </header>
 
