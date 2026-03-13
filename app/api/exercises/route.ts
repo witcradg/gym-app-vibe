@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { fetchExercises, upsertExercise } from "@/lib/supabase/workout-content";
+import {
+  fetchCollectionById,
+  fetchExercises,
+  upsertExercise,
+} from "@/lib/supabase/workout-content";
 import type { ExerciseRecordValues } from "@/types/workout-content-database";
 
 const normalizeString = (value: unknown): string | null => {
@@ -85,6 +89,14 @@ export async function POST(request: Request) {
 
   if ("error" in payload) {
     return NextResponse.json({ error: payload.error }, { status: 400 });
+  }
+
+  const collection = await fetchCollectionById(payload.collectionId);
+  if (!collection) {
+    return NextResponse.json(
+      { error: "Exercise collectionId must reference an existing collection." },
+      { status: 400 },
+    );
   }
 
   const result = await upsertExercise(payload);

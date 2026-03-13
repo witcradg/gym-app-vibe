@@ -93,6 +93,13 @@ textarea {
   line-height: 1.1;
 }
 
+.admin-workouts__header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
 .admin-workouts__header p {
   margin: 0.35rem 0 0;
   color: var(--text-muted);
@@ -105,6 +112,15 @@ textarea {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--accent);
+}
+
+.admin-workouts__home-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-top: 0.15rem;
 }
 
 .admin-workouts__layout {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import {
+  fetchCollectionById,
   deleteExercise,
   fetchExerciseById,
   upsertExercise,
@@ -61,9 +62,18 @@ export async function PATCH(
     return NextResponse.json({ error: "Request body must be an object." }, { status: 400 });
   }
 
+  const nextCollectionId = normalizeString(payload.collectionId) ?? existing.collectionId;
+  const collection = await fetchCollectionById(nextCollectionId);
+  if (!collection) {
+    return NextResponse.json(
+      { error: "Exercise collectionId must reference an existing collection." },
+      { status: 400 },
+    );
+  }
+
   const result = await upsertExercise({
     id,
-    collectionId: normalizeString(payload.collectionId) ?? existing.collectionId,
+    collectionId: nextCollectionId,
     name: normalizeString(payload.name) ?? existing.name,
     order: parsePositiveInt(payload.order) ?? existing.order,
     sets: parsePositiveInt(payload.sets) ?? existing.sets,

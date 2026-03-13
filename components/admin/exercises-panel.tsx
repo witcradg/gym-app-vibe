@@ -74,11 +74,11 @@ export function ExercisesPanel({
                 <button
                   type="button"
                   className="admin-list-item__content"
-                  onClick={() => onSelectExercise(exercise.id)}
+                    onClick={() => onSelectExercise(exercise.id)}
                 >
                   <span className="admin-list-item__title-row">
                     <span className="admin-list-item__title">
-                      {exercise.order}. {exercise.name || "Untitled exercise"}
+                      {exercise.name || "Untitled exercise"}
                     </span>
                     {isSelected ? (
                       <span className="admin-list-item__badge">Selected</span>

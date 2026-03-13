@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { CollectionEditor } from "@/components/admin/collection-editor";
@@ -11,6 +12,7 @@ import {
   isUnassignedCollection,
   sortCollectionsForDisplay,
 } from "@/lib/collection-utils";
+import { getNextExerciseOrder } from "@/lib/exercise-utils";
 import type { Collection } from "@/types/collection";
 import type { Exercise } from "@/types/exercise";
 
@@ -427,16 +429,11 @@ export default function AdminWorkoutsPage() {
     }
 
     clearMessages();
-    const maxOrder = collectionExercises.reduce(
-      (currentMax, exercise) => Math.max(currentMax, exercise.order),
-      0,
-    );
-
     const draft: ExerciseDraft = {
       id: crypto.randomUUID(),
       collectionId: selectedCollectionId,
       name: "",
-      order: String(maxOrder + 1),
+      order: String(getNextExerciseOrder(exercises, selectedCollectionId)),
       sets: "3",
       reps: "",
       weight: "",
@@ -514,6 +511,15 @@ export default function AdminWorkoutsPage() {
       return;
     }
 
+    const destinationCollection = collections.find(
+      (collection) => collection.id === exerciseDraft.collectionId,
+    );
+
+    if (!destinationCollection) {
+      setErrorMessage("Exercise collection must be a valid collection.");
+      return;
+    }
+
     if (!exerciseDraft.name.trim()) {
       setErrorMessage("Exercise name is required.");
       return;
@@ -521,6 +527,12 @@ export default function AdminWorkoutsPage() {
 
     const parsedSets = Number.parseInt(exerciseDraft.sets, 10);
     const parsedOrder = Number.parseInt(exerciseDraft.order, 10);
+    const existingExercise = exercises.find((exercise) => exercise.id === exerciseDraft.id) ?? null;
+    const isCollectionChanged =
+      exerciseDraft.collectionId !== (existingExercise?.collectionId ?? selectedCollectionId);
+    const effectiveOrder = isCollectionChanged
+      ? getNextExerciseOrder(exercises, exerciseDraft.collectionId, exerciseDraft.id)
+      : parsedOrder;
 
     if (!Number.isInteger(parsedSets) || parsedSets < 1) {
       setErrorMessage("Sets must be an integer greater than or equal to 1.");
@@ -549,7 +561,7 @@ export default function AdminWorkoutsPage() {
           id: exerciseDraft.id,
           collectionId: exerciseDraft.collectionId,
           name: exerciseDraft.name,
-          order: parsedOrder,
+          order: effectiveOrder,
           sets: parsedSets,
           reps: exerciseDraft.reps,
           weight: exerciseDraft.weight,
@@ -566,7 +578,7 @@ export default function AdminWorkoutsPage() {
         id: exerciseDraft.id,
         collectionId: exerciseDraft.collectionId,
         name: exerciseDraft.name.trim(),
-        order: parsedOrder,
+        order: effectiveOrder,
         sets: parsedSets,
         reps: exerciseDraft.reps.trim() || undefined,
         weight: exerciseDraft.weight.trim() || undefined,
@@ -584,7 +596,13 @@ export default function AdminWorkoutsPage() {
       setExerciseDraft(exerciseToDraft(nextExercise));
       setExerciseEditorMode("edit");
       setCollectionEditorMode(null);
-      setStatusMessage(isCreate ? "Exercise created." : "Exercise updated.");
+      setStatusMessage(
+        isCreate
+          ? "Exercise created."
+          : isCollectionChanged
+            ? `Exercise moved to ${destinationCollection.name}.`
+            : "Exercise updated.",
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to save exercise.",
@@ -644,10 +662,16 @@ export default function AdminWorkoutsPage() {
   return (
     <main className="admin-workouts">
       <header className="admin-workouts__header">
-        <div>
-          <p className="admin-workouts__eyebrow">Desktop Admin</p>
-          <h1>Workout Content</h1>
-          <p>Manage collections and exercises used by the phone workout UI.</p>
+        <div className="admin-workouts__header-row">
+          <div>
+            <p className="admin-workouts__eyebrow">Desktop Admin</p>
+            <h1>Workout Content</h1>
+            <p>Manage collections and exercises used by the phone workout UI.</p>
+          </div>
+
+          <Link href="/" className="admin-workouts__home-link">
+            Home
+          </Link>
         </div>
       </header>
 
