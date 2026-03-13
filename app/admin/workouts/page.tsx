@@ -6,6 +6,11 @@ import { CollectionEditor } from "@/components/admin/collection-editor";
 import { CollectionsPanel } from "@/components/admin/collections-panel";
 import { ExerciseEditor } from "@/components/admin/exercise-editor";
 import { ExercisesPanel } from "@/components/admin/exercises-panel";
+import {
+  findUnassignedCollection,
+  isUnassignedCollection,
+  sortCollectionsForDisplay,
+} from "@/lib/collection-utils";
 import type { Collection } from "@/types/collection";
 import type { Exercise } from "@/types/exercise";
 
@@ -30,15 +35,6 @@ type ExerciseDraft = {
 type RequestError = {
   error: string;
 };
-
-const sortCollections = (collections: Collection[]) =>
-  [...collections].sort((left, right) => {
-    if (left.order !== right.order) {
-      return left.order - right.order;
-    }
-
-    return left.name.localeCompare(right.name);
-  });
 
 const sortExercises = (exercises: Exercise[]) =>
   [...exercises].sort((left, right) => {
@@ -84,12 +80,28 @@ export default function AdminWorkoutsPage() {
   const [exerciseEditorMode, setExerciseEditorMode] = useState<"create" | "edit" | null>(null);
   const [collectionDraft, setCollectionDraft] = useState<CollectionDraft | null>(null);
   const [exerciseDraft, setExerciseDraft] = useState<ExerciseDraft | null>(null);
+  const [deleteCollectionDestinationId, setDeleteCollectionDestinationId] = useState("");
+  const [isDeleteCollectionConfirmOpen, setIsDeleteCollectionConfirmOpen] = useState(false);
 
   const selectedCollection = useMemo(
     () =>
       selectedCollectionId
         ? collections.find((collection) => collection.id === selectedCollectionId) ?? null
         : null,
+    [collections, selectedCollectionId],
+  );
+  const unassignedCollection = useMemo(
+    () => findUnassignedCollection(collections),
+    [collections],
+  );
+  const deleteDestinationOptions = useMemo(
+    () =>
+      sortCollectionsForDisplay(
+        collections.filter((collection) => collection.id !== selectedCollectionId),
+      ).map((collection) => ({
+        id: collection.id,
+        name: collection.name,
+      })),
     [collections, selectedCollectionId],
   );
 
@@ -123,7 +135,7 @@ export default function AdminWorkoutsPage() {
           exercisesResponse,
         )) as { exercises: Exercise[] };
 
-        const nextCollections = sortCollections(collectionsPayload.collections);
+        const nextCollections = sortCollectionsForDisplay(collectionsPayload.collections);
         const nextExercises = sortExercises(exercisesPayload.exercises);
 
         setCollections(nextCollections);
@@ -175,6 +187,30 @@ export default function AdminWorkoutsPage() {
     setErrorMessage(null);
   };
 
+  const resetDeleteCollectionState = (nextSelectedCollectionId?: string | null) => {
+    setIsDeleteCollectionConfirmOpen(false);
+
+    if (!unassignedCollection) {
+      setDeleteCollectionDestinationId("");
+      return;
+    }
+
+    const nextTargetCollectionId = nextSelectedCollectionId ?? selectedCollectionId;
+    const nextTargetCollection =
+      nextTargetCollectionId != null
+        ? collections.find((collection) => collection.id === nextTargetCollectionId) ?? null
+        : null;
+
+    if (isUnassignedCollection(nextTargetCollection)) {
+      setDeleteCollectionDestinationId("");
+      return;
+    }
+
+    setDeleteCollectionDestinationId(
+      nextTargetCollectionId === unassignedCollection.id ? "" : unassignedCollection.id,
+    );
+  };
+
   const handleSelectCollection = (collectionId: string) => {
     clearMessages();
     setSelectedCollectionId(collectionId);
@@ -182,6 +218,7 @@ export default function AdminWorkoutsPage() {
     setExerciseDraft(null);
     setExerciseEditorMode(null);
     setCollectionEditorMode("edit");
+    resetDeleteCollectionState(collectionId);
 
     const collection = collections.find((item) => item.id === collectionId) ?? null;
     setCollectionDraft(collection ? collectionToDraft(collection) : null);
@@ -195,6 +232,8 @@ export default function AdminWorkoutsPage() {
     setExerciseDraft(null);
     setExerciseEditorMode(null);
     setCollectionEditorMode("create");
+    setIsDeleteCollectionConfirmOpen(false);
+    setDeleteCollectionDestinationId(unassignedCollection?.id ?? "");
     setCollectionDraft({
       id: nextCollectionId,
       name: "",
@@ -214,6 +253,7 @@ export default function AdminWorkoutsPage() {
 
     clearMessages();
     setCollectionEditorMode("edit");
+    resetDeleteCollectionState(selectedCollection.id);
     setCollectionDraft(collectionToDraft(selectedCollection));
   };
 
@@ -222,11 +262,25 @@ export default function AdminWorkoutsPage() {
       return;
     }
 
-    const shouldDelete = window.confirm(
-      "Deleting this collection will also delete all exercises in it.",
-    );
+    if (isUnassignedCollection(selectedCollection)) {
+      setErrorMessage("The Unassigned collection cannot be deleted.");
+      return;
+    }
 
-    if (!shouldDelete) {
+    if (!unassignedCollection) {
+      setErrorMessage(
+        "The Unassigned collection is missing. Create or restore it before deleting collections.",
+      );
+      return;
+    }
+
+    if (!deleteCollectionDestinationId) {
+      setErrorMessage("Choose a destination collection for reassigned exercises.");
+      return;
+    }
+
+    if (deleteCollectionDestinationId === selectedCollection.id) {
+      setErrorMessage("A collection cannot be reassigned to itself.");
       return;
     }
 
@@ -236,6 +290,12 @@ export default function AdminWorkoutsPage() {
     try {
       const response = await fetch(`/api/collections/${selectedCollection.id}`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          destinationCollectionId: deleteCollectionDestinationId,
+        }),
       });
       const payload = await readJson<{ ok: true }>(response);
 
@@ -243,11 +303,18 @@ export default function AdminWorkoutsPage() {
         throw new Error(("error" in payload && payload.error) || "Failed to delete collection.");
       }
 
+      const destinationCollection = collections.find(
+        (collection) => collection.id === deleteCollectionDestinationId,
+      );
       const nextCollections = collections.filter(
         (collection) => collection.id !== selectedCollection.id,
       );
-      const nextExercises = exercises.filter(
-        (exercise) => exercise.collectionId !== selectedCollection.id,
+      const nextExercises = sortExercises(
+        exercises.map((exercise) =>
+          exercise.collectionId === selectedCollection.id
+            ? { ...exercise, collectionId: deleteCollectionDestinationId }
+            : exercise,
+        ),
       );
       const deletedCollectionIndex = collections.findIndex(
         (collection) => collection.id === selectedCollection.id,
@@ -264,9 +331,14 @@ export default function AdminWorkoutsPage() {
       setSelectedExerciseId(null);
       setCollectionDraft(fallbackCollection ? collectionToDraft(fallbackCollection) : null);
       setCollectionEditorMode(fallbackCollection ? "edit" : null);
+      resetDeleteCollectionState(fallbackCollection?.id ?? null);
       setExerciseDraft(null);
       setExerciseEditorMode(null);
-      setStatusMessage("Collection deleted.");
+      setStatusMessage(
+        destinationCollection
+          ? `Collection deleted. Exercises moved to ${destinationCollection.name}.`
+          : "Collection deleted.",
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to delete collection.",
@@ -326,7 +398,7 @@ export default function AdminWorkoutsPage() {
         description: collectionDraft.description.trim() || undefined,
         order: collectionDraft.order,
       };
-      const nextCollections = sortCollections([
+      const nextCollections = sortCollectionsForDisplay([
         ...collections.filter((collection) => collection.id !== nextCollection.id),
         nextCollection,
       ]);
@@ -338,6 +410,7 @@ export default function AdminWorkoutsPage() {
       setExerciseEditorMode(null);
       setCollectionDraft(collectionToDraft(nextCollection));
       setCollectionEditorMode("edit");
+      resetDeleteCollectionState(nextCollection.id);
       setStatusMessage(isCreate ? "Collection created." : "Collection updated.");
     } catch (error) {
       setErrorMessage(
@@ -549,6 +622,21 @@ export default function AdminWorkoutsPage() {
     setExerciseDraft((current) => (current ? { ...current, [field]: value } : current));
   };
 
+  const canDeleteSelectedCollection = Boolean(
+    selectedCollection &&
+      !isUnassignedCollection(selectedCollection) &&
+      unassignedCollection &&
+      deleteDestinationOptions.length > 0,
+  );
+  const deleteHelpText =
+    collectionEditorMode === "edit" && selectedCollection
+      ? isUnassignedCollection(selectedCollection)
+        ? "Unassigned is a protected system collection and cannot be deleted."
+        : !unassignedCollection
+          ? "The Unassigned collection is missing. Restore it before deleting collections."
+          : null
+      : null;
+
   const showCollectionEditor =
     collectionEditorMode === "create" || (selectedCollection && !selectedExerciseId);
   const showExerciseEditor = Boolean(selectedExerciseId && exerciseDraft);
@@ -574,7 +662,6 @@ export default function AdminWorkoutsPage() {
           onSelectCollection={handleSelectCollection}
           onCreateCollection={handleCreateCollection}
           onEditCollection={handleEditCollection}
-          onDeleteCollection={handleDeleteCollection}
         />
 
         <ExercisesPanel
@@ -609,6 +696,12 @@ export default function AdminWorkoutsPage() {
                   ? "Collection id is generated automatically."
                   : null
               }
+              canDelete={canDeleteSelectedCollection}
+              deleteHelpText={deleteHelpText}
+              deleteExerciseCount={collectionExercises.length}
+              deleteDestinationId={deleteCollectionDestinationId}
+              deleteDestinationOptions={deleteDestinationOptions}
+              isDeleteConfirmOpen={isDeleteCollectionConfirmOpen}
               onChange={handleCollectionFieldChange}
               onSave={handleSaveCollection}
               onCancel={() => {
@@ -616,6 +709,7 @@ export default function AdminWorkoutsPage() {
                   setCollectionEditorMode(null);
                   setCollectionDraft(null);
                   setSelectedCollectionId(null);
+                  resetDeleteCollectionState(null);
                   return;
                 }
 
@@ -623,7 +717,20 @@ export default function AdminWorkoutsPage() {
                 setCollectionDraft(
                   selectedCollection ? collectionToDraft(selectedCollection) : null,
                 );
+                resetDeleteCollectionState(selectedCollection?.id ?? null);
               }}
+              onDeleteDestinationChange={setDeleteCollectionDestinationId}
+              onOpenDeleteConfirm={() => {
+                clearMessages();
+                setIsDeleteCollectionConfirmOpen(true);
+                if (unassignedCollection && selectedCollection?.id !== unassignedCollection.id) {
+                  setDeleteCollectionDestinationId(unassignedCollection.id);
+                }
+              }}
+              onCloseDeleteConfirm={() => {
+                resetDeleteCollectionState(selectedCollection?.id ?? null);
+              }}
+              onConfirmDelete={() => void handleDeleteCollection()}
             />
           ) : null}
 

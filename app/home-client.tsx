@@ -9,6 +9,7 @@ import {
   type TouchEventHandler,
 } from "react";
 import { persistGymWorkoutAppState } from "./actions/workout-app-state";
+import { sortCollectionsForDisplay } from "../lib/collection-utils";
 import type { Collection } from "../types/collection";
 import type { Exercise } from "../types/exercise";
 import {
@@ -70,6 +71,10 @@ export default function HomeClient({
   exercises,
   initialPersistedAppState,
 }: HomeClientProps) {
+  const orderedCollections = useMemo(
+    () => sortCollectionsForDisplay(collections),
+    [collections],
+  );
   const exerciseSeedSignature = useMemo(() => JSON.stringify(exercises), [exercises]);
   const seedExercises = useMemo(() => createSeedExercises(exercises), [exercises]);
   const compatiblePersistedAppState = useMemo(
@@ -91,10 +96,10 @@ export default function HomeClient({
     () =>
       restoreNavigationState(
         compatiblePersistedAppState,
-        collections.map((collection) => collection.id),
+        orderedCollections.map((collection) => collection.id),
         initialExerciseState,
       ),
-    [collections, compatiblePersistedAppState, initialExerciseState],
+    [compatiblePersistedAppState, initialExerciseState, orderedCollections],
   );
 
   const [exerciseState, setExerciseState] = useState(initialExerciseState);
@@ -678,7 +683,7 @@ export default function HomeClient({
       </header>
 
       <section className="collections" aria-label="Workout collections">
-        {collections.map((collection) => (
+        {orderedCollections.map((collection) => (
           <button
             key={collection.id}
             type="button"

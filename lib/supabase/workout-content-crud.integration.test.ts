@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Collection } from "../../types/collection";
 import type { Exercise } from "../../types/exercise";
+import { findUnassignedCollection } from "../collection-utils";
 
 const loadLocalEnvFile = () => {
   const envPath = join(process.cwd(), ".env.local");
@@ -77,15 +78,17 @@ const updatedExercise: Exercise = {
 
 let originalCollection: Collection | null = null;
 let originalExercise: Exercise | null = null;
+let unassignedCollection: Collection | null = null;
 
 describe("supabase workout content crud", () => {
   beforeAll(async () => {
-    const { fetchCollectionById, fetchExerciseById } = await import(
+    const { fetchCollectionById, fetchCollections, fetchExerciseById } = await import(
       "./workout-content"
     );
 
     originalCollection = await fetchCollectionById(TEST_COLLECTION_ID);
     originalExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    unassignedCollection = findUnassignedCollection(await fetchCollections());
   });
 
   afterAll(async () => {
@@ -117,8 +120,9 @@ describe("supabase workout content crud", () => {
 
   it("creates, updates, reads, and deletes collection and exercise records", async () => {
     const {
-      deleteCollection,
       deleteExercise,
+      reassignExercisesToCollection,
+      deleteCollection,
       fetchCollectionById,
       fetchExerciseById,
       upsertCollection,
@@ -155,12 +159,26 @@ describe("supabase workout content crud", () => {
     const fetchedUpdatedExercise = await fetchExerciseById(TEST_EXERCISE_ID);
     expect(fetchedUpdatedExercise).toEqual(updatedExercise);
 
-    const deleteExerciseResult = await deleteExercise(TEST_EXERCISE_ID);
-    expect(deleteExerciseResult.ok).toBe(true);
-    expect(await fetchExerciseById(TEST_EXERCISE_ID)).toBeNull();
+    expect(unassignedCollection).not.toBeNull();
+
+    const reassignmentResult = await reassignExercisesToCollection(
+      TEST_COLLECTION_ID,
+      unassignedCollection!.id,
+    );
+    expect(reassignmentResult.ok).toBe(true);
+
+    const reassignedExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    expect(reassignedExercise).toEqual({
+      ...updatedExercise,
+      collectionId: unassignedCollection!.id,
+    });
 
     const deleteCollectionResult = await deleteCollection(TEST_COLLECTION_ID);
     expect(deleteCollectionResult.ok).toBe(true);
     expect(await fetchCollectionById(TEST_COLLECTION_ID)).toBeNull();
+
+    const deleteExerciseResult = await deleteExercise(TEST_EXERCISE_ID);
+    expect(deleteExerciseResult.ok).toBe(true);
+    expect(await fetchExerciseById(TEST_EXERCISE_ID)).toBeNull();
   });
 });

@@ -3,8 +3,10 @@ import { NextResponse } from "next/server";
 import {
   deleteCollection,
   fetchCollectionById,
+  reassignExercisesToCollection,
   upsertCollection,
 } from "@/lib/supabase/workout-content";
+import { isUnassignedCollection } from "@/lib/collection-utils";
 
 const normalizeString = (value: unknown): string | null => {
   if (typeof value !== "string") {
@@ -73,10 +75,56 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
+  const existing = await fetchCollectionById(id);
+
+  if (!existing) {
+    return NextResponse.json({ error: "Collection not found." }, { status: 404 });
+  }
+
+  if (isUnassignedCollection(existing)) {
+    return NextResponse.json(
+      { error: "The Unassigned collection cannot be deleted." },
+      { status: 400 },
+    );
+  }
+
+  const payload = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const destinationCollectionId =
+    typeof payload?.destinationCollectionId === "string"
+      ? payload.destinationCollectionId.trim()
+      : "";
+
+  if (!destinationCollectionId) {
+    return NextResponse.json(
+      { error: "A destination collection is required." },
+      { status: 400 },
+    );
+  }
+
+  if (destinationCollectionId === id) {
+    return NextResponse.json(
+      { error: "A collection cannot be reassigned to itself." },
+      { status: 400 },
+    );
+  }
+
+  const destination = await fetchCollectionById(destinationCollectionId);
+  if (!destination) {
+    return NextResponse.json(
+      { error: "The destination collection could not be found." },
+      { status: 400 },
+    );
+  }
+
+  const reassignmentResult = await reassignExercisesToCollection(id, destinationCollectionId);
+  if (!reassignmentResult.ok) {
+    return NextResponse.json({ error: reassignmentResult.error }, { status: 500 });
+  }
+
   const result = await deleteCollection(id);
 
   if (!result.ok) {

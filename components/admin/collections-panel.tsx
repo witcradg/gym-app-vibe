@@ -1,4 +1,5 @@
 import type { Collection } from "@/types/collection";
+import { isUnassignedCollection } from "@/lib/collection-utils";
 
 type CollectionsPanelProps = {
   collections: Collection[];
@@ -7,7 +8,6 @@ type CollectionsPanelProps = {
   onSelectCollection: (collectionId: string) => void;
   onCreateCollection: () => void;
   onEditCollection: () => void;
-  onDeleteCollection: () => void;
 };
 
 export function CollectionsPanel({
@@ -17,7 +17,6 @@ export function CollectionsPanel({
   onSelectCollection,
   onCreateCollection,
   onEditCollection,
-  onDeleteCollection,
 }: CollectionsPanelProps) {
   const selectedCollection = collections.find(
     (collection) => collection.id === selectedCollectionId,
@@ -44,14 +43,6 @@ export function CollectionsPanel({
         >
           Edit Collection
         </button>
-        <button
-          type="button"
-          className="admin-button admin-button--danger"
-          onClick={onDeleteCollection}
-          disabled={!selectedCollection}
-        >
-          Delete Collection
-        </button>
       </div>
 
       {loading ? <p className="admin-empty-state">Loading collections…</p> : null}
@@ -75,12 +66,20 @@ export function CollectionsPanel({
               >
                 <span className="admin-list-item__title-row">
                   <span className="admin-list-item__title">{collection.name}</span>
-                  {isSelected ? (
-                    <span className="admin-list-item__badge">Selected</span>
-                  ) : null}
+                  <span className="admin-list-item__badges">
+                    {isUnassignedCollection(collection) ? (
+                      <span className="admin-list-item__badge admin-list-item__badge--neutral">
+                        System
+                      </span>
+                    ) : null}
+                    {isSelected ? (
+                      <span className="admin-list-item__badge">Selected</span>
+                    ) : null}
+                  </span>
                 </span>
                 <span className="admin-list-item__meta">
-                  {collection.description || "No description"}
+                  Order {collection.order}
+                  {collection.description ? ` • ${collection.description}` : ""}
                 </span>
               </button>
             );

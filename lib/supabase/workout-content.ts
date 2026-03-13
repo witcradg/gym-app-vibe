@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient } from "../supabase";
+import { sortCollectionsForDisplay } from "../collection-utils";
 import type { Collection } from "../../types/collection";
 import type { Exercise } from "../../types/exercise";
 import type {
@@ -81,7 +82,9 @@ export async function fetchCollections(): Promise<Collection[]> {
     return [];
   }
 
-  return (data ?? []).map((row) => mapCollectionRow(row as CollectionRow));
+  return sortCollectionsForDisplay(
+    (data ?? []).map((row) => mapCollectionRow(row as CollectionRow)),
+  );
 }
 
 export async function fetchExercises(): Promise<Exercise[]> {
@@ -257,6 +260,30 @@ export async function deleteCollection(id: string): Promise<DeleteRecordResult> 
   }
 
   const { error: queryError } = await client.from("collections").delete().eq("id", id);
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  return { ok: true };
+}
+
+export async function reassignExercisesToCollection(
+  sourceCollectionId: string,
+  destinationCollectionId: string,
+): Promise<DeleteRecordResult> {
+  const { client, error: clientError } = getClient();
+  if (!client || clientError) {
+    return {
+      ok: false,
+      error: clientError ?? "Supabase admin credentials are not set.",
+    };
+  }
+
+  const { error: queryError } = await client
+    .from("exercises")
+    .update({ collection_id: destinationCollectionId })
+    .eq("collection_id", sourceCollectionId);
 
   if (queryError) {
     return { ok: false, error: queryError.message };
