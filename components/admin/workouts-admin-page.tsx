@@ -12,6 +12,7 @@ import {
   isUnassignedCollection,
   sortCollectionsForDisplay,
 } from "@/lib/collection-utils";
+import { shouldResetSelectedExercise } from "@/lib/admin-workouts-state";
 import { getNextExerciseOrder } from "@/lib/exercise-utils";
 import type { Collection } from "@/types/collection";
 import type { Exercise } from "@/types/exercise";
@@ -171,11 +172,15 @@ export default function WorkoutsAdminPage() {
       return;
     }
 
-    const selectedExerciseExists = collectionExercises.some(
-      (exercise) => exercise.id === selectedExerciseId,
-    );
-
-    if (selectedExerciseExists) {
+    if (
+      !shouldResetSelectedExercise({
+        exerciseDraftId: exerciseDraft?.id ?? null,
+        exerciseEditorMode,
+        selectedCollectionId,
+        selectedExerciseId,
+        collectionExerciseIds: collectionExercises.map((exercise) => exercise.id),
+      })
+    ) {
       return;
     }
 
