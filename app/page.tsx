@@ -2,6 +2,8 @@ import HomeClient from "./home-client";
 import { fetchGymWorkoutAppState } from "./actions/workout-app-state";
 import { fetchGymWorkoutContent } from "./actions/fetch-workout-content";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const [{ collections, exercises }, persistedAppState] = await Promise.all([
     fetchGymWorkoutContent(),
