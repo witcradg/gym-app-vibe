@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CollectionEditor } from "@/components/admin/collection-editor";
 import { CollectionsPanel } from "@/components/admin/collections-panel";
@@ -75,7 +75,7 @@ export default function WorkoutsAdminPage() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
@@ -85,6 +85,7 @@ export default function WorkoutsAdminPage() {
   const [exerciseDraft, setExerciseDraft] = useState<ExerciseDraft | null>(null);
   const [deleteCollectionDestinationId, setDeleteCollectionDestinationId] = useState("");
   const [isDeleteCollectionConfirmOpen, setIsDeleteCollectionConfirmOpen] = useState(false);
+  const toastTimerRef = useRef<number | null>(null);
 
   const selectedCollection = useMemo(
     () =>
@@ -162,6 +163,15 @@ export default function WorkoutsAdminPage() {
     void loadData();
   }, []);
 
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!selectedCollectionId) {
       setSelectedExerciseId(null);
@@ -190,8 +200,21 @@ export default function WorkoutsAdminPage() {
   }, [collectionExercises, exerciseEditorMode, selectedCollectionId, selectedExerciseId]);
 
   const clearMessages = () => {
-    setStatusMessage(null);
+    setToastMessage(null);
     setErrorMessage(null);
+  };
+
+  const showSuccessToast = (message: string) => {
+    setToastMessage(message);
+
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 1800);
   };
 
   const resetDeleteCollectionState = (nextSelectedCollectionId?: string | null) => {
@@ -341,7 +364,7 @@ export default function WorkoutsAdminPage() {
       resetDeleteCollectionState(fallbackCollection?.id ?? null);
       setExerciseDraft(null);
       setExerciseEditorMode(null);
-      setStatusMessage(
+      showSuccessToast(
         destinationCollection
           ? `Collection deleted. Exercises moved to ${destinationCollection.name}.`
           : "Collection deleted.",
@@ -418,7 +441,7 @@ export default function WorkoutsAdminPage() {
       setCollectionDraft(collectionToDraft(nextCollection));
       setCollectionEditorMode("edit");
       resetDeleteCollectionState(nextCollection.id);
-      setStatusMessage(isCreate ? "Collection created." : "Collection updated.");
+      showSuccessToast(isCreate ? "Collection created." : "Collection updated.");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to save collection.",
@@ -496,7 +519,7 @@ export default function WorkoutsAdminPage() {
         setCollectionDraft(selectedCollection ? collectionToDraft(selectedCollection) : null);
       }
 
-      setStatusMessage("Exercise deleted.");
+      showSuccessToast("Exercise deleted.");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Failed to delete exercise.",
@@ -601,7 +624,7 @@ export default function WorkoutsAdminPage() {
       setExerciseDraft(exerciseToDraft(nextExercise));
       setExerciseEditorMode("edit");
       setCollectionEditorMode(null);
-      setStatusMessage(
+      showSuccessToast(
         isCreate
           ? "Exercise created."
           : isCollectionChanged
@@ -680,8 +703,12 @@ export default function WorkoutsAdminPage() {
         </div>
       </header>
 
-      {statusMessage ? <p className="admin-banner admin-banner--success">{statusMessage}</p> : null}
       {errorMessage ? <p className="admin-banner admin-banner--error">{errorMessage}</p> : null}
+      {toastMessage ? (
+        <div className="admin-toast" role="status" aria-live="polite">
+          {toastMessage}
+        </div>
+      ) : null}
 
       <div className="admin-workouts__layout">
         <CollectionsPanel
