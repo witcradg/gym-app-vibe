@@ -507,11 +507,18 @@ textarea {
   gap: 0.5rem;
 }
 
-.exercise-card__complete {
-  color: #16a34a;
-  font-size: 1rem;
+.exercise-card__status {
+  font-size: 1.1rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.exercise-card__status--complete {
+  color: #16a34a;
+}
+
+.exercise-card__status--in-progress {
+  color: #f59e0b;
 }
 
 .exercise-card__plan {

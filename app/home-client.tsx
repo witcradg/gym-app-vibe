@@ -60,7 +60,7 @@ const getSwipeDirection = (
 
 const completionUi = {
   "not-started": { symbol: "○", label: "Not started" },
-  "in-progress": { symbol: "◐", label: "In progress" },
+  "in-progress": { symbol: "◓", label: "In progress" },
   complete: { symbol: "✓", label: "Complete" },
 } as const;
 
@@ -498,12 +498,6 @@ export default function HomeClient({
     setExerciseSaveState(null);
   };
 
-  const isExerciseComplete = (exerciseId: string, expectedSetCount: number) =>
-    deriveExerciseCompletionStatus(
-      setChecksByExercise[exerciseId],
-      expectedSetCount,
-    ) === "complete";
-
   const handleResetCollection = () => {
     if (!activeCollectionId) {
       return;
@@ -867,26 +861,37 @@ export default function HomeClient({
           onTouchStart={handleExerciseListTouchStart}
           onTouchEnd={handleExerciseListTouchEnd}
         >
-          {orderedExercises.map((exercise, index) => (
-            <button
-              key={exercise.id}
-              type="button"
-              className="exercise-card"
-              onClick={() => openExerciseCardByIndex(index)}
-            >
-              <span className="exercise-card__name-row">
-                <span className="exercise-card__name">{exercise.name}</span>
-                {isExerciseComplete(exercise.id, exercise.sets) ? (
-                  <span className="exercise-card__complete" aria-label="Completed">
-                    ✓
-                  </span>
-                ) : null}
-              </span>
-              <span className="exercise-card__plan">
-                {exercise.sets} × {exercise.reps} @ {exercise.weight}
-              </span>
-            </button>
-          ))}
+          {orderedExercises.map((exercise, index) => {
+            const completion = deriveExerciseCompletionStatus(
+              setChecksByExercise[exercise.id],
+              exercise.sets,
+            );
+            const completionForUi = completionUi[completion];
+
+            return (
+              <button
+                key={exercise.id}
+                type="button"
+                className="exercise-card"
+                onClick={() => openExerciseCardByIndex(index)}
+              >
+                <span className="exercise-card__name-row">
+                  <span className="exercise-card__name">{exercise.name}</span>
+                  {completion !== "not-started" ? (
+                    <span
+                      className={`exercise-card__status exercise-card__status--${completion}`}
+                      aria-label={completionForUi.label}
+                    >
+                      {completionForUi.symbol}
+                    </span>
+                  ) : null}
+                </span>
+                <span className="exercise-card__plan">
+                  {exercise.sets} × {exercise.reps} @ {exercise.weight}
+                </span>
+              </button>
+            );
+          })}
         </section>
       </main>
     );
