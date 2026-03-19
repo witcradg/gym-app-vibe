@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
-    "build": "node scripts/build-with-metadata.mjs",
+    "dev": "echo 'ERROR: choose an environment → npm run dev:old or npm run dev:new' && exit 1",
+    "dev:old": "cp .env.old-project .env.local && next dev",
+    "dev:new": "cp .env.gym-notebook .env.local && next dev",
+    "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "next lint"
+  },
+  "archivedScripts": {
+    "build:pre-env-switch": "node scripts/build-with-metadata.mjs",
+    "lint:pre-env-switch": "eslint .",
     "type-check": "tsc --noEmit",
     "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts",
     "test:supabase-read": "vitest run lib/supabase/workout-content.integration.test.ts",
@@ -14,7 +20,8 @@
     "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.99.1",
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.99.2",
     "next": "16.1.6",
     "react": "19.2.4",
     "react-dom": "19.2.4"

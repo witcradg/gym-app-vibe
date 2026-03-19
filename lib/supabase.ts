@@ -6,17 +6,27 @@ type CreateAdminClientResult =
 
 export function createAdminClient(): CreateAdminClientResult {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const secretKey =
+    process.env.SUPABASE_SECRET_KEY?.trim() ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
-  if (!url || !serviceRoleKey) {
+  if (!url) {
     return {
       client: null,
-      error: "Supabase admin credentials are not set.",
+      error: "Missing env var: NEXT_PUBLIC_SUPABASE_URL",
+    };
+  }
+
+  if (!secretKey) {
+    return {
+      client: null,
+      error:
+        "Missing env var: SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY)",
     };
   }
 
   return {
-    client: createClient(url, serviceRoleKey, {
+    client: createClient(url, secretKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
