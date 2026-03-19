@@ -1,20 +1,21 @@
-import HomeClient from "./home-client";
-import { fetchGymWorkoutAppState } from "./actions/workout-app-state";
-import { fetchGymWorkoutContent } from "./actions/fetch-workout-content";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+export default async function HomePage() {
+  const supabase = await createClient();
 
-export default async function Home() {
-  const [{ collections, exercises }, persistedAppState] = await Promise.all([
-    fetchGymWorkoutContent(),
-    fetchGymWorkoutAppState(),
-  ]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
 
   return (
-    <HomeClient
-      collections={collections}
-      exercises={exercises}
-      initialPersistedAppState={persistedAppState}
-    />
+    <main className="p-6">
+      <h1 className="text-2xl font-semibold">Gym Notebook</h1>
+      <p className="mt-2 text-sm">You are signed in.</p>
+    </main>
   );
 }
