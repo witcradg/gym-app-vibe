@@ -1,20 +1,24 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-if (!supabaseUrl) {
-  throw new Error("Missing env var: NEXT_PUBLIC_SUPABASE_URL");
+function requireEnv(value: string | undefined, message: string): string {
+  if (!value) {
+    throw new Error(message);
+  }
+
+  return value;
 }
 
-const supabasePublishableKey =
+const supabaseUrl = requireEnv(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  "Missing env var: NEXT_PUBLIC_SUPABASE_URL",
+);
+
+const supabasePublishableKey = requireEnv(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabasePublishableKey) {
-  throw new Error(
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     "Missing env var: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or legacy NEXT_PUBLIC_SUPABASE_ANON_KEY)",
-  );
-}
+);
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 type CookieOptions = Parameters<CookieStore["set"]>[2];

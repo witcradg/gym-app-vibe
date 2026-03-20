@@ -8,7 +8,8 @@
     "dev:new": "cp .env.gym-notebook .env.local && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
   },
   "archivedScripts": {
     "build:pre-env-switch": "node scripts/build-with-metadata.mjs",
