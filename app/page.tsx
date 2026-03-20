@@ -11,28 +11,21 @@ type HomePageProps = {
 };
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  console.log("[AUTH DEBUG] / page render started");
   const supabase = await createClient();
   const params = searchParams ? await searchParams : undefined;
-  const sessionResult = await supabase.auth.getSession();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  console.log("[AUTH DEBUG] / page session:", sessionResult.data.session);
-  console.log("[AUTH DEBUG] / page user:", user ? user.email : null);
 
   if (!user) {
     const initialMessage = params?.authError
       ? "We couldn't complete sign-in. Please try again."
       : undefined;
 
-    console.log("[AUTH DEBUG] / rendering login UI");
     return <LoginForm initialMessage={initialMessage} />;
   }
 
-  console.log("[AUTH DEBUG] / rendering authenticated app for:", user.email);
   const [{ collections, exercises }, initialPersistedAppState] = await Promise.all([
     fetchGymWorkoutContent(),
     fetchGymWorkoutAppState(),
