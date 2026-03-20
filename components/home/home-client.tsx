@@ -837,20 +837,6 @@ export default function HomeClient({
             >
               Back
             </button>
-            <button
-              type="button"
-              className="reset-button"
-              onClick={handleResetCollection}
-            >
-              Reset Collection
-            </button>
-            <p
-              className={`reset-feedback${showResetFeedback ? " is-visible" : ""}`}
-              role="status"
-              aria-live="polite"
-            >
-              Collection reset
-            </p>
           </div>
           <h1>{selectedCollection.name}</h1>
         </header>
@@ -902,10 +888,26 @@ export default function HomeClient({
       <header className="home__header">
         <div className="home__title-row">
           <h1>Gym App</h1>
-          <Link href="/dashboard/workouts" className="home__manage-link">
-            Dashboard
-          </Link>
+          <div className="home__header-actions">
+            <button
+              type="button"
+              className="reset-button"
+              onClick={handleResetCollection}
+            >
+              Reset Session
+            </button>
+            <Link href="/dashboard/workouts" className="home__manage-link">
+              Dashboard
+            </Link>
+          </div>
         </div>
+        <p
+          className={`home__reset-feedback${showResetFeedback ? " is-visible" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          Session reset
+        </p>
         <p>Select a collection.</p>
       </header>
 
