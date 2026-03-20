@@ -71,7 +71,7 @@ async function readJson<T>(response: Response): Promise<T | RequestError> {
   return (await response.json()) as T | RequestError;
 }
 
-export default function WorkoutsAdminPage() {
+export default function WorkoutsDashboardPage() {
   const supabase = createClient();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -131,7 +131,7 @@ export default function WorkoutsAdminPage() {
         ]);
 
         if (!collectionsResponse.ok || !exercisesResponse.ok) {
-          throw new Error("Failed to load admin data.");
+          throw new Error("Failed to load dashboard data.");
         }
 
         const collectionsPayload = (await readJson<{ collections: Collection[] }>(
@@ -155,7 +155,7 @@ export default function WorkoutsAdminPage() {
         });
       } catch (error) {
         setErrorMessage(
-          error instanceof Error ? error.message : "Failed to load admin data.",
+          error instanceof Error ? error.message : "Failed to load dashboard data.",
         );
       } finally {
         setLoading(false);
@@ -699,9 +699,9 @@ export default function WorkoutsAdminPage() {
       <header className="admin-workouts__header">
         <div className="admin-workouts__header-row">
           <div>
-            <p className="admin-workouts__eyebrow">Desktop Admin</p>
-            <h1>Workout Content</h1>
-            <p>Manage collections and exercises used by the phone workout UI.</p>
+            <p className="admin-workouts__eyebrow">Dashboard</p>
+            <h1>My Workout Content</h1>
+            <p>Manage your collections and exercises used by the phone workout UI.</p>
           </div>
 
           <div className="admin-workouts__header-actions">

@@ -1,7 +1,7 @@
-import WorkoutsAdminPage from "@/components/admin/workouts-admin-page";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default function Page() {
-  return <WorkoutsAdminPage />;
+  redirect("/dashboard/workouts");
 }

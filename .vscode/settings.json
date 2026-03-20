@@ -1,3 +1,0 @@
-{
-	"window.title": "${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}${separator}[Branch: feat/decouple-app-from-ufitdb]"
-}

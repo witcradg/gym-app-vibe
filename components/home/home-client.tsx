@@ -902,8 +902,8 @@ export default function HomeClient({
       <header className="home__header">
         <div className="home__title-row">
           <h1>Gym App</h1>
-          <Link href="/admin/workouts" className="home__manage-link">
-            Manage Content
+          <Link href="/dashboard/workouts" className="home__manage-link">
+            Dashboard
           </Link>
         </div>
         <p>Select a collection.</p>

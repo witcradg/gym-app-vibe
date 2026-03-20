@@ -1,7 +1,7 @@
 "use server";
 
 import type { PersistedAppState } from "../../data/exerciseState";
-import { createAdminClient } from "../supabase";
+import { createClient } from "./server";
 
 const GYM_APP_STATE_ROW_ID = "gym-app-state";
 
@@ -12,11 +12,7 @@ type WorkoutAppStateRow = {
 };
 
 export async function fetchWorkoutAppState(): Promise<PersistedAppState | null> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    console.error("Supabase app state fetch misconfigured", configError);
-    return null;
-  }
+  const client = await createClient();
 
   const { data, error } = await client
     .from("gym_app_state")
@@ -36,13 +32,7 @@ export async function fetchWorkoutAppState(): Promise<PersistedAppState | null> 
 export async function saveWorkoutAppState(
   state: PersistedAppState,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    return {
-      ok: false,
-      error: configError ?? "Supabase admin credentials are not set.",
-    };
-  }
+  const client = await createClient();
 
   const { error } = await client.from("gym_app_state").upsert(
     {
@@ -63,13 +53,7 @@ export async function saveWorkoutAppState(
 export async function deleteWorkoutAppState(): Promise<
   { ok: true } | { ok: false; error: string }
 > {
-  const { client, error: configError } = createAdminClient();
-  if (!client || configError) {
-    return {
-      ok: false,
-      error: configError ?? "Supabase admin credentials are not set.",
-    };
-  }
+  const client = await createClient();
 
   const { error } = await client
     .from("gym_app_state")

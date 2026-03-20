@@ -90,8 +90,8 @@ export default function AboutPage() {
             <Link href="/" className="admin-button about-build__link">
               Home
             </Link>
-            <Link href="/admin/workouts" className="admin-button about-build__link">
-              Manage Content
+            <Link href="/dashboard/workouts" className="admin-button about-build__link">
+              Dashboard
             </Link>
           </div>
         </div>
