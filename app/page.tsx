@@ -1,3 +1,6 @@
+import { fetchGymWorkoutAppState } from "./actions/workout-app-state";
+import { fetchGymWorkoutContent } from "./actions/fetch-workout-content";
+import HomeClient from "@/components/home/home-client";
 import { createClient } from "@/lib/supabase/server";
 import LoginForm from "./login/login-form";
 
@@ -30,10 +33,16 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   }
 
   console.log("[AUTH DEBUG] / rendering authenticated app for:", user.email);
+  const [{ collections, exercises }, initialPersistedAppState] = await Promise.all([
+    fetchGymWorkoutContent(),
+    fetchGymWorkoutAppState(),
+  ]);
+
   return (
-    <main className="p-6">
-      <h1 className="text-2xl font-semibold">Gym Notebook</h1>
-      <p className="mt-2 text-sm">You are signed in.</p>
-    </main>
+    <HomeClient
+      collections={collections}
+      exercises={exercises}
+      initialPersistedAppState={initialPersistedAppState}
+    />
   );
 }

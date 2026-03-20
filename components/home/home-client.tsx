@@ -8,14 +8,14 @@ import {
   useState,
   type TouchEventHandler,
 } from "react";
-import { persistGymWorkoutAppState } from "./actions/workout-app-state";
-import { sortCollectionsForDisplay } from "../lib/collection-utils";
+import { persistGymWorkoutAppState } from "../../app/actions/workout-app-state";
+import { sortCollectionsForDisplay } from "../../lib/collection-utils";
 import {
   buildExerciseEditPatch,
   hasExerciseEditPatch,
-} from "../lib/exercise-edit-patch";
-import type { Collection } from "../types/collection";
-import type { Exercise } from "../types/exercise";
+} from "../../lib/exercise-edit-patch";
+import type { Collection } from "../../types/collection";
+import type { Exercise } from "../../types/exercise";
 import {
   buildInitialSetChecks,
   buildPersistenceState,
@@ -24,11 +24,11 @@ import {
   deriveExerciseCompletionStatus,
   mergeExerciseState,
   restoreNavigationState,
-} from "../data/exerciseState";
+} from "../../data/exerciseState";
 import type {
   NavigationView,
   PersistedAppState,
-} from "../data/exerciseState";
+} from "../../data/exerciseState";
 
 const SWIPE_VERTICAL_MIN_PX = 55;
 const SWIPE_HORIZONTAL_MIN_PX = 75;
