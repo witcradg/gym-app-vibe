@@ -7,6 +7,7 @@ import { CollectionEditor } from "@/components/admin/collection-editor";
 import { CollectionsPanel } from "@/components/admin/collections-panel";
 import { ExerciseEditor } from "@/components/admin/exercise-editor";
 import { ExercisesPanel } from "@/components/admin/exercises-panel";
+import { createClient } from "@/lib/supabase/client";
 import {
   findUnassignedCollection,
   isUnassignedCollection,
@@ -71,6 +72,7 @@ async function readJson<T>(response: Response): Promise<T | RequestError> {
 }
 
 export default function WorkoutsAdminPage() {
+  const supabase = createClient();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
@@ -687,6 +689,11 @@ export default function WorkoutsAdminPage() {
     collectionEditorMode === "create" || (selectedCollection && !selectedExerciseId);
   const showExerciseEditor = Boolean(selectedExerciseId && exerciseDraft);
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
   return (
     <main className="admin-workouts">
       <header className="admin-workouts__header">
@@ -697,9 +704,18 @@ export default function WorkoutsAdminPage() {
             <p>Manage collections and exercises used by the phone workout UI.</p>
           </div>
 
-          <Link href="/" className="admin-workouts__home-link">
-            Home
-          </Link>
+          <div className="admin-workouts__header-actions">
+            <Link href="/" className="admin-workouts__home-link">
+              Home
+            </Link>
+            <button
+              type="button"
+              className="admin-workouts__signout-button"
+              onClick={handleSignOut}
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 

@@ -1,9 +1,9 @@
 import { createElement, type ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { Collection } from "../types/collection";
-import type { PersistedAppState } from "../data/exerciseState";
-import type { Exercise } from "../types/exercise";
+import type { Collection } from "../../types/collection";
+import type { PersistedAppState } from "../../data/exerciseState";
+import type { Exercise } from "../../types/exercise";
 import HomeClient from "./home-client";
 
 vi.mock("next/link", () => ({
@@ -11,7 +11,7 @@ vi.mock("next/link", () => ({
     createElement("a", { href, ...props }, children),
 }));
 
-vi.mock("./actions/workout-app-state", () => ({
+vi.mock("../../app/actions/workout-app-state", () => ({
   persistGymWorkoutAppState: vi.fn(async () => ({ ok: true as const })),
 }));
 
