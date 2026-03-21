@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "node scripts/build-with-metadata.mjs",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "archivedScripts": {
