@@ -40,6 +40,8 @@ type RequestError = {
   error: string;
 };
 
+const MOBILE_EDITOR_BREAKPOINT = "(max-width: 1100px)";
+
 const sortExercises = (exercises: Exercise[]) =>
   [...exercises].sort((left, right) => {
     if (left.collectionId !== right.collectionId) {
@@ -88,6 +90,8 @@ export default function WorkoutsDashboardPage() {
   const [deleteCollectionDestinationId, setDeleteCollectionDestinationId] = useState("");
   const [isDeleteCollectionConfirmOpen, setIsDeleteCollectionConfirmOpen] = useState(false);
   const toastTimerRef = useRef<number | null>(null);
+  const collectionEditorRef = useRef<HTMLDivElement | null>(null);
+  const exerciseEditorRef = useRef<HTMLDivElement | null>(null);
 
   const selectedCollection = useMemo(
     () =>
@@ -199,7 +203,7 @@ export default function WorkoutsDashboardPage() {
     setSelectedExerciseId(null);
     setExerciseDraft(null);
     setExerciseEditorMode(null);
-  }, [collectionExercises, exerciseEditorMode, selectedCollectionId, selectedExerciseId]);
+  }, [collectionExercises, exerciseDraft?.id, exerciseEditorMode, selectedCollectionId, selectedExerciseId]);
 
   const clearMessages = () => {
     setToastMessage(null);
@@ -689,6 +693,30 @@ export default function WorkoutsDashboardPage() {
     collectionEditorMode === "create" || (selectedCollection && !selectedExerciseId);
   const showExerciseEditor = Boolean(selectedExerciseId && exerciseDraft);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!window.matchMedia(MOBILE_EDITOR_BREAKPOINT).matches) {
+      return;
+    }
+
+    const target = showExerciseEditor
+      ? exerciseEditorRef.current
+      : showCollectionEditor
+        ? collectionEditorRef.current
+        : null;
+
+    if (!target) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [showCollectionEditor, showExerciseEditor, collectionDraft?.id, exerciseDraft?.id]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
@@ -759,82 +787,86 @@ export default function WorkoutsDashboardPage() {
           ) : null}
 
           {showCollectionEditor ? (
-            <CollectionEditor
-              mode={collectionEditorMode}
-              draft={collectionDraft}
-              loading={busy}
-              message={
-                collectionEditorMode === "create"
-                  ? "Collection id is generated automatically."
-                  : null
-              }
-              canDelete={canDeleteSelectedCollection}
-              deleteHelpText={deleteHelpText}
-              deleteExerciseCount={collectionExercises.length}
-              deleteDestinationId={deleteCollectionDestinationId}
-              deleteDestinationOptions={deleteDestinationOptions}
-              isDeleteConfirmOpen={isDeleteCollectionConfirmOpen}
-              onChange={handleCollectionFieldChange}
-              onSave={handleSaveCollection}
-              onCancel={() => {
-                if (collectionEditorMode === "create" && !selectedCollection) {
-                  setCollectionEditorMode(null);
-                  setCollectionDraft(null);
-                  setSelectedCollectionId(null);
-                  resetDeleteCollectionState(null);
-                  return;
+            <div ref={collectionEditorRef}>
+              <CollectionEditor
+                mode={collectionEditorMode}
+                draft={collectionDraft}
+                loading={busy}
+                message={
+                  collectionEditorMode === "create"
+                    ? "Collection id is generated automatically."
+                    : null
                 }
+                canDelete={canDeleteSelectedCollection}
+                deleteHelpText={deleteHelpText}
+                deleteExerciseCount={collectionExercises.length}
+                deleteDestinationId={deleteCollectionDestinationId}
+                deleteDestinationOptions={deleteDestinationOptions}
+                isDeleteConfirmOpen={isDeleteCollectionConfirmOpen}
+                onChange={handleCollectionFieldChange}
+                onSave={handleSaveCollection}
+                onCancel={() => {
+                  if (collectionEditorMode === "create" && !selectedCollection) {
+                    setCollectionEditorMode(null);
+                    setCollectionDraft(null);
+                    setSelectedCollectionId(null);
+                    resetDeleteCollectionState(null);
+                    return;
+                  }
 
-                setCollectionEditorMode(selectedCollection ? "edit" : null);
-                setCollectionDraft(
-                  selectedCollection ? collectionToDraft(selectedCollection) : null,
-                );
-                resetDeleteCollectionState(selectedCollection?.id ?? null);
-              }}
-              onDeleteDestinationChange={setDeleteCollectionDestinationId}
-              onOpenDeleteConfirm={() => {
-                clearMessages();
-                setIsDeleteCollectionConfirmOpen(true);
-                if (unassignedCollection && selectedCollection?.id !== unassignedCollection.id) {
-                  setDeleteCollectionDestinationId(unassignedCollection.id);
-                }
-              }}
-              onCloseDeleteConfirm={() => {
-                resetDeleteCollectionState(selectedCollection?.id ?? null);
-              }}
-              onConfirmDelete={() => void handleDeleteCollection()}
-            />
-          ) : null}
-
-          {showExerciseEditor ? (
-            <ExerciseEditor
-              collections={collections}
-              draft={exerciseDraft}
-              mode={exerciseEditorMode}
-              loading={busy}
-              message={selectedCollection ? `Current collection: ${selectedCollection.name}` : null}
-              onChange={handleExerciseFieldChange}
-              onSave={handleSaveExercise}
-              onDelete={() => void handleDeleteExercise()}
-              onCancel={() => {
-                const selectedExercise =
-                  exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
-
-                if (!selectedExercise) {
-                  setSelectedExerciseId(null);
-                  setExerciseEditorMode(null);
-                  setExerciseDraft(null);
                   setCollectionEditorMode(selectedCollection ? "edit" : null);
                   setCollectionDraft(
                     selectedCollection ? collectionToDraft(selectedCollection) : null,
                   );
-                  return;
-                }
+                  resetDeleteCollectionState(selectedCollection?.id ?? null);
+                }}
+                onDeleteDestinationChange={setDeleteCollectionDestinationId}
+                onOpenDeleteConfirm={() => {
+                  clearMessages();
+                  setIsDeleteCollectionConfirmOpen(true);
+                  if (unassignedCollection && selectedCollection?.id !== unassignedCollection.id) {
+                    setDeleteCollectionDestinationId(unassignedCollection.id);
+                  }
+                }}
+                onCloseDeleteConfirm={() => {
+                  resetDeleteCollectionState(selectedCollection?.id ?? null);
+                }}
+                onConfirmDelete={() => void handleDeleteCollection()}
+              />
+            </div>
+          ) : null}
 
-                setExerciseEditorMode("edit");
-                setExerciseDraft(exerciseToDraft(selectedExercise));
-              }}
-            />
+          {showExerciseEditor ? (
+            <div ref={exerciseEditorRef}>
+              <ExerciseEditor
+                collections={collections}
+                draft={exerciseDraft}
+                mode={exerciseEditorMode}
+                loading={busy}
+                message={selectedCollection ? `Current collection: ${selectedCollection.name}` : null}
+                onChange={handleExerciseFieldChange}
+                onSave={handleSaveExercise}
+                onDelete={() => void handleDeleteExercise()}
+                onCancel={() => {
+                  const selectedExercise =
+                    exercises.find((exercise) => exercise.id === selectedExerciseId) ?? null;
+
+                  if (!selectedExercise) {
+                    setSelectedExerciseId(null);
+                    setExerciseEditorMode(null);
+                    setExerciseDraft(null);
+                    setCollectionEditorMode(selectedCollection ? "edit" : null);
+                    setCollectionDraft(
+                      selectedCollection ? collectionToDraft(selectedCollection) : null,
+                    );
+                    return;
+                  }
+
+                  setExerciseEditorMode("edit");
+                  setExerciseDraft(exerciseToDraft(selectedExercise));
+                }}
+              />
+            </div>
           ) : null}
         </div>
       </div>
