@@ -170,6 +170,29 @@ export async function upsertExercise(
   return { ok: true, recordId: data.id };
 }
 
+export async function updateExercise(
+  exercise: ExerciseRecordValues,
+): Promise<UpsertExerciseResult> {
+  const client = await createClient();
+
+  const { data, error: queryError } = await client
+    .from("exercises")
+    .update(toExerciseRow(exercise))
+    .eq("id", exercise.id)
+    .select("id")
+    .single();
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Exercise update returned no data." };
+  }
+
+  return { ok: true, recordId: data.id };
+}
+
 export async function fetchCollectionById(
   id: string,
 ): Promise<Collection | null> {

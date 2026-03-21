@@ -4,7 +4,7 @@ import {
   fetchCollectionById,
   deleteExercise,
   fetchExerciseById,
-  upsertExercise,
+  updateExercise,
 } from "@/lib/supabase/workout-content";
 
 const normalizeString = (value: unknown): string | null => {
@@ -71,7 +71,7 @@ export async function PATCH(
     );
   }
 
-  const result = await upsertExercise({
+  const result = await updateExercise({
     id,
     collectionId: nextCollectionId,
     name: normalizeString(payload.name) ?? existing.name,
