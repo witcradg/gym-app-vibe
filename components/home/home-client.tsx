@@ -8,7 +8,6 @@ import {
   useState,
   type TouchEventHandler,
 } from "react";
-import { persistGymWorkoutAppState } from "../../app/actions/workout-app-state";
 import { sortCollectionsForDisplay } from "../../lib/collection-utils";
 import {
   buildExerciseEditPatch,
@@ -19,10 +18,10 @@ import type { Exercise } from "../../types/exercise";
 import {
   buildInitialSetChecks,
   buildPersistenceState,
-  buildSetChecksState,
   createSeedExercises,
   deriveExerciseCompletionStatus,
-  mergeExerciseState,
+  hasCheckedSets,
+  normalizePersistedAppState,
   restoreNavigationState,
 } from "../../data/exerciseState";
 import type {
@@ -85,38 +84,29 @@ export default function HomeClient({
     () => sortCollectionsForDisplay(collections),
     [collections],
   );
-  const exerciseSeedSignature = useMemo(() => JSON.stringify(exercises), [exercises]);
   const seedExercises = useMemo(() => createSeedExercises(exercises), [exercises]);
-  const compatiblePersistedAppState = useMemo(
-    () =>
-      initialPersistedAppState?.seedSignature === exerciseSeedSignature
-        ? initialPersistedAppState
-        : null,
-    [exerciseSeedSignature, initialPersistedAppState],
+  const collectionIds = useMemo(
+    () => orderedCollections.map((collection) => collection.id),
+    [orderedCollections],
   );
-  const initialExerciseState = useMemo(
-    () => mergeExerciseState(seedExercises, compatiblePersistedAppState),
-    [compatiblePersistedAppState, seedExercises],
-  );
-  const initialSetChecks = useMemo(
-    () => buildSetChecksState(initialExerciseState, compatiblePersistedAppState),
-    [compatiblePersistedAppState, initialExerciseState],
+  const initialPersistedSessionState = useMemo(
+    () => normalizePersistedAppState(initialPersistedAppState, seedExercises, collectionIds),
+    [collectionIds, initialPersistedAppState, seedExercises],
   );
   const initialNavigation = useMemo(
     () =>
       restoreNavigationState(
-        compatiblePersistedAppState,
-        orderedCollections.map((collection) => collection.id),
-        initialExerciseState,
+        initialPersistedSessionState,
+        collectionIds,
+        seedExercises,
       ),
-    [compatiblePersistedAppState, initialExerciseState, orderedCollections],
+    [collectionIds, initialPersistedSessionState, seedExercises],
   );
 
-  const [exerciseState, setExerciseState] = useState(initialExerciseState);
-  const [setChecksByExercise, setSetChecksByExercise] = useState(() =>
-    Object.keys(initialSetChecks).length > 0
-      ? initialSetChecks
-      : buildInitialSetChecks(seedExercises),
+  const [exerciseState, setExerciseState] = useState(seedExercises);
+  const [setChecksByExercise, setSetChecksByExercise] = useState(
+    () =>
+      initialPersistedSessionState?.setChecksByExercise ?? buildInitialSetChecks(seedExercises),
   );
   const [view, setView] = useState<NavigationView>(initialNavigation.view);
   const [activeCollectionId, setActiveCollectionId] = useState<string | null>(
@@ -129,9 +119,12 @@ export default function HomeClient({
   const [isJumpMenuOpen, setIsJumpMenuOpen] = useState(false);
   const [showResetFeedback, setShowResetFeedback] = useState(false);
   const hasMountedRef = useRef(false);
+  const hasAttemptedRehydrateRef = useRef(false);
+  const hasCurrentResumableStateRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const resetFeedbackTimerRef = useRef<number | null>(null);
   const exerciseSaveFeedbackTimerRef = useRef<number | null>(null);
+  const latestPersistedSessionRef = useRef<PersistedAppState | null>(null);
   const cardSwipeStartRef = useRef<{
     x: number;
     y: number;
@@ -140,7 +133,7 @@ export default function HomeClient({
   const listSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const savedEditableStateRef = useRef(
     Object.fromEntries(
-      initialExerciseState.map((exercise) => [
+      seedExercises.map((exercise) => [
         exercise.id,
         {
           notes: exercise.notes,
@@ -178,6 +171,70 @@ export default function HomeClient({
       .sort((a, b) => a.order - b.order);
   }, [activeCollectionId, exerciseState]);
 
+  const applyPersistedSessionState = (savedState: PersistedAppState | null) => {
+    const normalizedState = normalizePersistedAppState(
+      savedState,
+      exerciseState,
+      collectionIds,
+    );
+
+    if (!normalizedState) {
+      return;
+    }
+
+    const normalizedNavigation = restoreNavigationState(
+      normalizedState,
+      collectionIds,
+      exerciseState,
+    );
+
+    setSetChecksByExercise(normalizedState.setChecksByExercise);
+    setView(normalizedNavigation.view);
+    setActiveCollectionId(normalizedNavigation.activeCollectionId);
+    setActiveExerciseIndex(normalizedNavigation.activeExerciseIndex);
+    setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
+    setShowResetFeedback(false);
+  };
+
+  const hasCurrentResumableState =
+    view !== "collections" || activeCollectionId !== null || hasCheckedSets(setChecksByExercise);
+
+  useEffect(() => {
+    hasCurrentResumableStateRef.current = hasCurrentResumableState;
+  }, [hasCurrentResumableState]);
+
+  const persistCurrentWorkoutSession = async (
+    state: PersistedAppState,
+    keepalive = false,
+  ) => {
+    const response = await fetch("/api/workout-app-state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(state),
+      cache: "no-store",
+      keepalive,
+    });
+
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; error?: string }
+      | null;
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Failed to persist workout app state.");
+    }
+  };
+
+  useEffect(() => {
+    latestPersistedSessionRef.current = buildPersistenceState(setChecksByExercise, {
+      activeCollectionId,
+      activeExerciseIndex,
+      activeView: view === "exercise-card" ? "exercise-card" : "exercise-list",
+    });
+  }, [activeCollectionId, activeExerciseIndex, setChecksByExercise, view]);
+
   useEffect(() => {
     if (!hasMountedRef.current) {
       hasMountedRef.current = true;
@@ -189,31 +246,63 @@ export default function HomeClient({
     }
 
     persistTimerRef.current = window.setTimeout(() => {
-      const persistenceState = buildPersistenceState(
-        exerciseState,
-        setChecksByExercise,
-        exerciseSeedSignature,
-        {
-          activeCollectionId,
-          activeExerciseIndex,
-          activeView: view === "exercise-card" ? "exercise-card" : "exercise-list",
-        },
-      );
+      const persistenceState = latestPersistedSessionRef.current;
+      if (!persistenceState) {
+        return;
+      }
 
-      void persistGymWorkoutAppState(persistenceState).then((result) => {
-        if (!result.ok) {
-          console.error("Failed to persist workout app state", result.error);
-        }
+      void persistCurrentWorkoutSession(persistenceState).catch((error) => {
+        console.error(
+          "Failed to persist workout app state",
+          error instanceof Error ? error.message : error,
+        );
       });
     }, 250);
   }, [
     activeCollectionId,
     activeExerciseIndex,
-    exerciseState,
-    exerciseSeedSignature,
     setChecksByExercise,
     view,
   ]);
+
+  useEffect(() => {
+    if (hasAttemptedRehydrateRef.current || hasCurrentResumableState) {
+      return;
+    }
+
+    hasAttemptedRehydrateRef.current = true;
+
+    let cancelled = false;
+
+    async function rehydratePersistedSession() {
+      try {
+        const response = await fetch("/api/workout-app-state", {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { state?: PersistedAppState | null }
+          | null;
+
+        if (
+          !response.ok ||
+          cancelled ||
+          hasCurrentResumableStateRef.current
+        ) {
+          return;
+        }
+
+        applyPersistedSessionState(payload?.state ?? null);
+      } catch {
+        // Silent failure: the app should still remain usable without resume.
+      }
+    }
+
+    void rehydratePersistedSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionIds, exerciseState, hasCurrentResumableState]);
 
   useEffect(
     () => () => {
@@ -231,6 +320,33 @@ export default function HomeClient({
     },
     [],
   );
+
+  useEffect(() => {
+    const flushPersistedSession = () => {
+      const persistenceState = latestPersistedSessionRef.current;
+      if (!persistenceState) {
+        return;
+      }
+
+      void persistCurrentWorkoutSession(persistenceState, true).catch(() => {
+        // Best effort only during abrupt lifecycle transitions.
+      });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushPersistedSession();
+      }
+    };
+
+    window.addEventListener("pagehide", flushPersistedSession);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pagehide", flushPersistedSession);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (view !== "exercise-card") {
