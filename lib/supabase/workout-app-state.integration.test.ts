@@ -37,15 +37,7 @@ const loadLocalEnvFile = () => {
 loadLocalEnvFile();
 
 const temporaryState: PersistedAppState = {
-  seedSignature: "integration-test-signature",
-  exercisesById: {
-    "integration-exercise": {
-      notes: "integration note",
-      sets: 2,
-      reps: "10",
-      weight: "25 lbs",
-    },
-  },
+  version: 1,
   setChecksByExercise: {
     "integration-exercise": [true, false],
   },

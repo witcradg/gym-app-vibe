@@ -6,16 +6,10 @@ export type RuntimeExercise = Omit<Exercise, "reps" | "weight" | "notes"> & {
   notes: string;
 };
 
-export type PersistedExerciseState = {
-  notes: string;
-  sets: number;
-  reps: string;
-  weight: string;
-};
-
 export type PersistedAppState = {
-  seedSignature?: string;
-  exercisesById: Record<string, PersistedExerciseState>;
+  version?: 1;
+  status?: "in_progress" | "completed";
+  updatedAt?: string;
   setChecksByExercise: Record<string, boolean[]>;
   activeCollectionId?: string | null;
   activeExerciseIndex?: number;
@@ -51,15 +45,6 @@ const toPositiveIntFromSeed = (value: unknown, fallback: number) => {
   return fallback;
 };
 
-const toPositiveInt = (value: unknown, fallback: number) => {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
-  }
-
-  const nextValue = Math.floor(value);
-  return nextValue >= 1 ? nextValue : fallback;
-};
-
 const toStringFromValue = (value: unknown, fallback: string) => {
   if (typeof value === "string") {
     return value;
@@ -81,29 +66,6 @@ export const createSeedExercises = (seedExercises: Exercise[]): RuntimeExercise[
     weight: toStringFromValue(exercise.weight, ""),
     notes: toStringFromValue(exercise.notes, ""),
   }));
-
-export const mergeExerciseState = (
-  seedExercises: RuntimeExercise[],
-  savedState: PersistedAppState | null,
-): RuntimeExercise[] =>
-  seedExercises.map((exercise) => {
-    const savedExercise = savedState?.exercisesById[exercise.id];
-
-    if (!savedExercise) {
-      return exercise;
-    }
-
-    return {
-      ...exercise,
-      notes:
-        typeof savedExercise.notes === "string"
-          ? savedExercise.notes
-          : exercise.notes,
-      sets: toPositiveInt(savedExercise.sets, exercise.sets),
-      reps: toStringFromValue(savedExercise.reps, exercise.reps),
-      weight: toStringFromValue(savedExercise.weight, exercise.weight),
-    };
-  });
 
 export const buildSetChecksState = (
   currentExercises: RuntimeExercise[],
@@ -129,32 +91,65 @@ export const buildInitialSetChecks = (seedExercises: RuntimeExercise[]) =>
   );
 
 export const buildPersistenceState = (
-  exerciseState: RuntimeExercise[],
   setChecksByExercise: Record<string, boolean[]>,
-  seedSignature: string,
   navigation: {
     activeCollectionId: string | null;
     activeExerciseIndex: number;
     activeView: "exercise-list" | "exercise-card";
   },
 ): PersistedAppState => ({
-  seedSignature,
-  exercisesById: Object.fromEntries(
-    exerciseState.map((exercise) => [
-      exercise.id,
-      {
-        notes: exercise.notes,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        weight: exercise.weight,
-      },
-    ]),
-  ),
+  version: 1,
   setChecksByExercise,
   activeCollectionId: navigation.activeCollectionId,
   activeExerciseIndex: navigation.activeExerciseIndex,
   activeView: navigation.activeView,
 });
+
+export const hasCheckedSets = (
+  setChecksByExercise: Record<string, boolean[]>,
+) =>
+  Object.values(setChecksByExercise).some((setChecks) => setChecks.some(Boolean));
+
+export const hasResumableWorkoutState = (
+  state: PersistedAppState | null | undefined,
+) =>
+  Boolean(
+    state &&
+      (state.activeCollectionId ||
+        hasCheckedSets(state.setChecksByExercise ?? {})),
+  );
+
+export const normalizePersistedAppState = (
+  savedState: PersistedAppState | null,
+  currentExercises: RuntimeExercise[],
+  collectionIds: string[],
+): PersistedAppState | null => {
+  if (!savedState) {
+    return null;
+  }
+
+  const setChecksByExercise = buildSetChecksState(currentExercises, savedState);
+  const navigation = restoreNavigationState(savedState, collectionIds, currentExercises);
+
+  if (
+    !hasCheckedSets(setChecksByExercise) &&
+    !navigation.activeCollectionId &&
+    navigation.view === "collections"
+  ) {
+    return null;
+  }
+
+  return {
+    version: savedState.version === 1 ? 1 : undefined,
+    status: savedState.status,
+    updatedAt: savedState.updatedAt,
+    setChecksByExercise,
+    activeCollectionId: navigation.activeCollectionId,
+    activeExerciseIndex: navigation.activeExerciseIndex,
+    activeView:
+      navigation.view === "collections" ? "exercise-list" : navigation.view,
+  };
+};
 
 export const restoreNavigationState = (
   savedState: PersistedAppState | null,

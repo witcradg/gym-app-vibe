@@ -38,8 +38,7 @@ describe("HomeClient exercise list status symbols", () => {
 
   const renderExerciseList = (setChecks: boolean[]) => {
     const persistedAppState: PersistedAppState = {
-      seedSignature: JSON.stringify(exercises),
-      exercisesById: {},
+      version: 1,
       setChecksByExercise: {
         "e-1": setChecks,
       },
