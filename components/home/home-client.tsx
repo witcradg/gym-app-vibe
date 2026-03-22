@@ -121,6 +121,9 @@ export default function HomeClient({
   const hasMountedRef = useRef(false);
   const hasAttemptedRehydrateRef = useRef(false);
   const hasCurrentResumableStateRef = useRef(false);
+  const hasHydratedPersistedSessionRef = useRef(initialPersistedAppState !== null);
+  const hasUserMutatedSessionRef = useRef(false);
+  const hasExplicitSessionResetRef = useRef(false);
   const persistTimerRef = useRef<number | null>(null);
   const resetFeedbackTimerRef = useRef<number | null>(null);
   const exerciseSaveFeedbackTimerRef = useRef<number | null>(null);
@@ -204,6 +207,11 @@ export default function HomeClient({
     hasCurrentResumableStateRef.current = hasCurrentResumableState;
   }, [hasCurrentResumableState]);
 
+  const canPersistWorkoutSession = () =>
+    hasHydratedPersistedSessionRef.current ||
+    hasUserMutatedSessionRef.current ||
+    hasExplicitSessionResetRef.current;
+
   const persistCurrentWorkoutSession = async (
     state: PersistedAppState,
     keepalive = false,
@@ -246,6 +254,10 @@ export default function HomeClient({
     }
 
     persistTimerRef.current = window.setTimeout(() => {
+      if (!canPersistWorkoutSession()) {
+        return;
+      }
+
       const persistenceState = latestPersistedSessionRef.current;
       if (!persistenceState) {
         return;
@@ -283,11 +295,13 @@ export default function HomeClient({
           | { state?: PersistedAppState | null }
           | null;
 
-        if (
-          !response.ok ||
-          cancelled ||
-          hasCurrentResumableStateRef.current
-        ) {
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        hasHydratedPersistedSessionRef.current = true;
+
+        if (hasCurrentResumableStateRef.current) {
           return;
         }
 
@@ -323,6 +337,10 @@ export default function HomeClient({
 
   useEffect(() => {
     const flushPersistedSession = () => {
+      if (!canPersistWorkoutSession()) {
+        return;
+      }
+
       const persistenceState = latestPersistedSessionRef.current;
       if (!persistenceState) {
         return;
@@ -370,6 +388,7 @@ export default function HomeClient({
   }, [activeExerciseIndex, orderedExercises.length, view]);
 
   const openCollection = (collectionId: string) => {
+    hasUserMutatedSessionRef.current = true;
     setActiveCollectionId(collectionId);
     setActiveExerciseIndex(0);
     setView("exercise-list");
@@ -379,6 +398,7 @@ export default function HomeClient({
   };
 
   const navigateToCollections = () => {
+    hasUserMutatedSessionRef.current = true;
     setView("collections");
     setActiveCollectionId(null);
     setActiveExerciseIndex(0);
@@ -388,6 +408,7 @@ export default function HomeClient({
   };
 
   const openExerciseCardByIndex = (exerciseIndex: number) => {
+    hasUserMutatedSessionRef.current = true;
     setActiveExerciseIndex(exerciseIndex);
     setView("exercise-card");
     setIsAdjustingPlan(false);
@@ -395,6 +416,7 @@ export default function HomeClient({
   };
 
   const navigateToExerciseList = () => {
+    hasUserMutatedSessionRef.current = true;
     setView("exercise-list");
     setIsAdjustingPlan(false);
     setIsJumpMenuOpen(false);
@@ -444,6 +466,7 @@ export default function HomeClient({
   };
 
   const handleToggleSet = (exerciseId: string, setIndex: number) => {
+    hasUserMutatedSessionRef.current = true;
     setSetChecksByExercise((currentChecks) => {
       const nextSetChecks = [...(currentChecks[exerciseId] ?? [])];
       nextSetChecks[setIndex] = !nextSetChecks[setIndex];
@@ -615,6 +638,9 @@ export default function HomeClient({
   };
 
   const handleResetCollection = () => {
+    hasExplicitSessionResetRef.current = true;
+    hasUserMutatedSessionRef.current = true;
+
     if (!activeCollectionId) {
       return;
     }
@@ -642,6 +668,7 @@ export default function HomeClient({
   };
 
   const moveToAdjacentExercise = (offset: -1 | 1) => {
+    hasUserMutatedSessionRef.current = true;
     const nextIndex = activeExerciseIndex + offset;
 
     if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
@@ -654,6 +681,7 @@ export default function HomeClient({
   };
 
   const jumpToExerciseIndex = (nextIndex: number) => {
+    hasUserMutatedSessionRef.current = true;
     if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
       return;
     }

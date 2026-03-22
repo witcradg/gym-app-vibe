@@ -131,14 +131,6 @@ export const normalizePersistedAppState = (
   const setChecksByExercise = buildSetChecksState(currentExercises, savedState);
   const navigation = restoreNavigationState(savedState, collectionIds, currentExercises);
 
-  if (
-    !hasCheckedSets(setChecksByExercise) &&
-    !navigation.activeCollectionId &&
-    navigation.view === "collections"
-  ) {
-    return null;
-  }
-
   return {
     version: savedState.version === 1 ? 1 : undefined,
     status: savedState.status,
@@ -147,7 +139,7 @@ export const normalizePersistedAppState = (
     activeCollectionId: navigation.activeCollectionId,
     activeExerciseIndex: navigation.activeExerciseIndex,
     activeView:
-      navigation.view === "collections" ? "exercise-list" : navigation.view,
+      navigation.view === "collections" ? undefined : navigation.view,
   };
 };
 
