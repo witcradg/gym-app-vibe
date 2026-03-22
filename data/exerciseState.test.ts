@@ -60,21 +60,31 @@ describe("normalizePersistedAppState", () => {
     });
   });
 
-  it("returns null when persisted state has no resumable workout data", () => {
+  it("preserves stored session state when navigation is no longer valid", () => {
     const normalized = normalizePersistedAppState(
       {
         setChecksByExercise: {
           "e-1": [false, false, false],
         },
-        activeCollectionId: null,
-        activeExerciseIndex: 0,
-        activeView: "exercise-list",
+        activeCollectionId: "missing-collection",
+        activeExerciseIndex: 4,
+        activeView: "exercise-card",
       },
       createSeedExercises(exercises),
       ["c-1"],
     );
 
-    expect(normalized).toBeNull();
+    expect(normalized).toEqual({
+      version: undefined,
+      status: undefined,
+      updatedAt: undefined,
+      setChecksByExercise: {
+        "e-1": [false, false, false],
+      },
+      activeCollectionId: null,
+      activeExerciseIndex: 0,
+      activeView: undefined,
+    });
   });
 });
 
