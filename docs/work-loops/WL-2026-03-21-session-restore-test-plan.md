@@ -3,27 +3,27 @@ What I would do next is not ask Codex for more changes yet. First test this vers
 
 Use this test sequence:
 
-Start a workout, check some sets, move to another exercise, refresh the page.
+- [x] Start a workout, check some sets, move to another exercise, refresh the page.
 
-Start a workout, check some sets, close the tab entirely, reopen the app.
+- [ ] Start a workout, check some sets, close the tab entirely, reopen the app.
 
-Start a workout, wait a moment after changes, close and reopen.
+- [ ] Start a workout, wait a moment after changes, close and reopen.
 
-Start a workout, make changes, immediately close the tab to test the keepalive flush path.
+- [ ] Start a workout, make changes, immediately close the tab to test the keepalive flush path.
 
-Edit sets/reps/weight/notes, refresh, and confirm those come from exercise records rather than session state.
+- [ ] Edit sets/reps/weight/notes, refresh, and confirm those come from exercise records rather than session state.
 
-Verify a signed-in user gets one resumable workout, not ambiguous restore behavior.
+- [ ] Verify a signed-in user gets one resumable workout, not ambiguous restore behavior.
 
 What I would inspect in the code before testing:
 
-data/exerciseState.ts to confirm no content overlay remains
+- [ ] data/exerciseState.ts to confirm no content overlay remains
 
-components/home/home-client.tsx to confirm rehydrate only runs when resumable state is truly missing
+- [ ] components/home/home-client.tsx to confirm rehydrate only runs when resumable state is truly missing
 
-the API/action route to confirm write/read shape matches the new payload
+- [ ] the API/action route to confirm write/read shape matches the new payload
 
-tests to see whether they cover abrupt exit and legacy payload normalization
+- [ ] tests to see whether they cover abrupt exit and legacy payload normalization
 
 Two things I would still watch closely:
 
