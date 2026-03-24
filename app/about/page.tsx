@@ -65,7 +65,7 @@ export default function AboutPage() {
         <div className="home__title-row">
           <h1>About This Build</h1>
           <Link href="/" className="home__manage-link">
-            Home
+            Workout
           </Link>
         </div>
         <p>
@@ -88,7 +88,7 @@ export default function AboutPage() {
           <p className="about-build__links-label">Links</p>
           <div className="admin-actions">
             <Link href="/" className="admin-button about-build__link">
-              Home
+              Workout
             </Link>
           </div>
         </div>

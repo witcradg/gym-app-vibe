@@ -734,7 +734,7 @@ export default function WorkoutsDashboardPage() {
 
           <div className="admin-workouts__header-actions">
             <Link href="/" className="admin-workouts__home-link">
-              Home
+              Workout
             </Link>
             <button
               type="button"
