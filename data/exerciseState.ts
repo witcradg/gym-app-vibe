@@ -143,6 +143,36 @@ export const normalizePersistedAppState = (
   };
 };
 
+const findResumeTarget = (
+  savedState: PersistedAppState | null,
+  collectionIds: string[],
+  exercises: RuntimeExercise[],
+) => {
+  const availableCollectionIds = new Set(collectionIds);
+
+  for (const exercise of exercises) {
+    if (!availableCollectionIds.has(exercise.collectionId)) {
+      continue;
+    }
+
+    const hasProgress = savedState?.setChecksByExercise?.[exercise.id]?.some(Boolean);
+    if (!hasProgress) {
+      continue;
+    }
+
+    const activeExerciseIndex = exercises
+      .filter((item) => item.collectionId === exercise.collectionId)
+      .findIndex((item) => item.id === exercise.id);
+
+    return {
+      activeCollectionId: exercise.collectionId,
+      activeExerciseIndex: Math.max(activeExerciseIndex, 0),
+    };
+  }
+
+  return null;
+};
+
 export const restoreNavigationState = (
   savedState: PersistedAppState | null,
   collectionIds: string[],
@@ -151,6 +181,16 @@ export const restoreNavigationState = (
   const collectionId = savedState?.activeCollectionId;
 
   if (!collectionId || !collectionIds.includes(collectionId)) {
+    const resumeTarget = findResumeTarget(savedState, collectionIds, exercises);
+
+    if (resumeTarget) {
+      return {
+        view: "exercise-list",
+        activeCollectionId: resumeTarget.activeCollectionId,
+        activeExerciseIndex: resumeTarget.activeExerciseIndex,
+      };
+    }
+
     return {
       view: "collections",
       activeCollectionId: null,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   useEffect,
   useMemo,
@@ -63,6 +64,14 @@ const completionUi = {
   complete: { symbol: "✓", label: "Complete" },
 } as const;
 
+const gymAppDebugEnabled = process.env.NEXT_PUBLIC_GYM_APP_DEBUG_STATE === "1";
+
+const countCheckedSets = (setChecksByExercise: Record<string, boolean[]>) =>
+  Object.values(setChecksByExercise).reduce(
+    (total, setChecks) => total + setChecks.filter(Boolean).length,
+    0,
+  );
+
 type ExerciseSaveState = {
   exerciseId: string;
   kind: "error" | "success";
@@ -73,13 +82,27 @@ type HomeClientProps = {
   collections: Collection[];
   exercises: Exercise[];
   initialPersistedAppState: PersistedAppState | null;
+  authStatus: "authenticated" | "anonymous";
+};
+
+type DebugStateSource = "default" | "local" | "server";
+
+type DebugSaveStatus = {
+  at: string;
+  checkedCount: number;
+  keepalive: boolean;
+  source: string;
+  status: "attempt" | "success" | "error";
+  error?: string;
 };
 
 export default function HomeClient({
   collections,
   exercises,
   initialPersistedAppState,
+  authStatus,
 }: HomeClientProps) {
+  const pathname = usePathname();
   const orderedCollections = useMemo(
     () => sortCollectionsForDisplay(collections),
     [collections],
@@ -154,6 +177,19 @@ export default function HomeClient({
     weight: string;
   } | null>(null);
   const [exerciseSaveState, setExerciseSaveState] = useState<ExerciseSaveState>(null);
+  const [debugPersistedStateFound, setDebugPersistedStateFound] = useState(
+    initialPersistedAppState !== null,
+  );
+  const [debugStateSource, setDebugStateSource] = useState<DebugStateSource>(
+    initialPersistedAppState ? "server" : "default",
+  );
+  const [debugLoadedCheckedCount, setDebugLoadedCheckedCount] = useState(() =>
+    countCheckedSets(initialPersistedAppState?.setChecksByExercise ?? {}),
+  );
+  const [debugHydrationApplied, setDebugHydrationApplied] = useState(
+    initialPersistedAppState !== null,
+  );
+  const [debugLastSaveStatus, setDebugLastSaveStatus] = useState<DebugSaveStatus | null>(null);
 
   const selectedCollection = useMemo(
     () =>
@@ -175,6 +211,8 @@ export default function HomeClient({
   }, [activeCollectionId, exerciseState]);
 
   const applyPersistedSessionState = (savedState: PersistedAppState | null) => {
+    setDebugPersistedStateFound(savedState !== null);
+    setDebugLoadedCheckedCount(countCheckedSets(savedState?.setChecksByExercise ?? {}));
     const normalizedState = normalizePersistedAppState(
       savedState,
       exerciseState,
@@ -182,6 +220,7 @@ export default function HomeClient({
     );
 
     if (!normalizedState) {
+      setDebugHydrationApplied(false);
       return;
     }
 
@@ -191,6 +230,8 @@ export default function HomeClient({
       exerciseState,
     );
 
+    setDebugStateSource("server");
+    setDebugHydrationApplied(true);
     setSetChecksByExercise(normalizedState.setChecksByExercise);
     setView(normalizedNavigation.view);
     setActiveCollectionId(normalizedNavigation.activeCollectionId);
@@ -212,14 +253,28 @@ export default function HomeClient({
     hasUserMutatedSessionRef.current ||
     hasExplicitSessionResetRef.current;
 
+  const markSessionMutated = () => {
+    hasUserMutatedSessionRef.current = true;
+    setDebugStateSource("local");
+  };
+
   const persistCurrentWorkoutSession = async (
     state: PersistedAppState,
     keepalive = false,
+    payloadSource = "client-persist",
   ) => {
+    setDebugLastSaveStatus({
+      at: new Date().toISOString(),
+      checkedCount: countCheckedSets(state.setChecksByExercise ?? {}),
+      keepalive,
+      source: payloadSource,
+      status: "attempt",
+    });
     const response = await fetch("/api/workout-app-state", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-gym-app-payload-source": payloadSource,
       },
       body: JSON.stringify(state),
       cache: "no-store",
@@ -231,8 +286,25 @@ export default function HomeClient({
       | null;
 
     if (!response.ok || !payload?.ok) {
-      throw new Error(payload?.error || "Failed to persist workout app state.");
+      const errorMessage = payload?.error || "Failed to persist workout app state.";
+      setDebugLastSaveStatus({
+        at: new Date().toISOString(),
+        checkedCount: countCheckedSets(state.setChecksByExercise ?? {}),
+        keepalive,
+        source: payloadSource,
+        status: "error",
+        error: errorMessage,
+      });
+      throw new Error(errorMessage);
     }
+
+    setDebugLastSaveStatus({
+      at: new Date().toISOString(),
+      checkedCount: countCheckedSets(state.setChecksByExercise ?? {}),
+      keepalive,
+      source: payloadSource,
+      status: "success",
+    });
   };
 
   useEffect(() => {
@@ -263,7 +335,11 @@ export default function HomeClient({
         return;
       }
 
-      void persistCurrentWorkoutSession(persistenceState).catch((error) => {
+      void persistCurrentWorkoutSession(
+        persistenceState,
+        false,
+        "autosave-debounce",
+      ).catch((error) => {
         console.error(
           "Failed to persist workout app state",
           error instanceof Error ? error.message : error,
@@ -290,6 +366,9 @@ export default function HomeClient({
       try {
         const response = await fetch("/api/workout-app-state", {
           cache: "no-store",
+          headers: {
+            "x-gym-app-payload-source": "client-rehydrate",
+          },
         });
         const payload = (await response.json().catch(() => null)) as
           | { state?: PersistedAppState | null }
@@ -299,6 +378,10 @@ export default function HomeClient({
           return;
         }
 
+        setDebugPersistedStateFound((payload?.state ?? null) !== null);
+        setDebugLoadedCheckedCount(
+          countCheckedSets(payload?.state?.setChecksByExercise ?? {}),
+        );
         hasHydratedPersistedSessionRef.current = true;
 
         if (hasCurrentResumableStateRef.current) {
@@ -346,7 +429,11 @@ export default function HomeClient({
         return;
       }
 
-      void persistCurrentWorkoutSession(persistenceState, true).catch(() => {
+      void persistCurrentWorkoutSession(
+        persistenceState,
+        true,
+        "lifecycle-flush",
+      ).catch(() => {
         // Best effort only during abrupt lifecycle transitions.
       });
     };
@@ -388,7 +475,7 @@ export default function HomeClient({
   }, [activeExerciseIndex, orderedExercises.length, view]);
 
   const openCollection = (collectionId: string) => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     setActiveCollectionId(collectionId);
     setActiveExerciseIndex(0);
     setView("exercise-list");
@@ -398,7 +485,7 @@ export default function HomeClient({
   };
 
   const navigateToCollections = () => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     setView("collections");
     setActiveCollectionId(null);
     setActiveExerciseIndex(0);
@@ -408,7 +495,7 @@ export default function HomeClient({
   };
 
   const openExerciseCardByIndex = (exerciseIndex: number) => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     setActiveExerciseIndex(exerciseIndex);
     setView("exercise-card");
     setIsAdjustingPlan(false);
@@ -416,7 +503,7 @@ export default function HomeClient({
   };
 
   const navigateToExerciseList = () => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     setView("exercise-list");
     setIsAdjustingPlan(false);
     setIsJumpMenuOpen(false);
@@ -466,7 +553,7 @@ export default function HomeClient({
   };
 
   const handleToggleSet = (exerciseId: string, setIndex: number) => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     setSetChecksByExercise((currentChecks) => {
       const nextSetChecks = [...(currentChecks[exerciseId] ?? [])];
       nextSetChecks[setIndex] = !nextSetChecks[setIndex];
@@ -639,7 +726,7 @@ export default function HomeClient({
 
   const handleResetCollection = () => {
     hasExplicitSessionResetRef.current = true;
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
 
     if (!activeCollectionId) {
       return;
@@ -668,7 +755,7 @@ export default function HomeClient({
   };
 
   const moveToAdjacentExercise = (offset: -1 | 1) => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     const nextIndex = activeExerciseIndex + offset;
 
     if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
@@ -681,7 +768,7 @@ export default function HomeClient({
   };
 
   const jumpToExerciseIndex = (nextIndex: number) => {
-    hasUserMutatedSessionRef.current = true;
+    markSessionMutated();
     if (nextIndex < 0 || nextIndex >= orderedExercises.length) {
       return;
     }
@@ -765,10 +852,40 @@ export default function HomeClient({
         (savedEditableStateRef.current[activeExercise.id]?.notes ?? "")
       : false;
 
+    const debugPanel = gymAppDebugEnabled ? (
+    <section
+      aria-label="Workout state debug"
+      style={{
+        marginBottom: "1rem",
+        border: "1px solid rgba(148, 163, 184, 0.5)",
+        borderRadius: "0.75rem",
+        padding: "0.75rem",
+        background: "rgba(15, 23, 42, 0.04)",
+        fontSize: "0.85rem",
+      }}
+    >
+      <strong style={{ display: "block", marginBottom: "0.5rem" }}>
+        Debug: Workout State
+      </strong>
+      <div>route: {pathname}</div>
+      <div>auth: {authStatus}</div>
+      <div>persisted found: {String(debugPersistedStateFound)}</div>
+      <div>state source: {debugStateSource}</div>
+      <div>loaded checked count: {debugLoadedCheckedCount}</div>
+      <div>visible checked count: {countCheckedSets(setChecksByExercise)}</div>
+      <div>hydration applied: {String(debugHydrationApplied)}</div>
+      <div>
+        last save: {debugLastSaveStatus
+          ? `${debugLastSaveStatus.status} | ${debugLastSaveStatus.source} | checked=${debugLastSaveStatus.checkedCount} | keepalive=${String(debugLastSaveStatus.keepalive)} | ${debugLastSaveStatus.at}${debugLastSaveStatus.error ? ` | ${debugLastSaveStatus.error}` : ""}`
+          : "none"}
+      </div>
+    </section>
+  ) : null;
+
   if (view === "exercise-card" && selectedCollection && activeExercise) {
     const currentExercisePosition = activeExerciseIndex + 1;
     const totalExercises = orderedExercises.length;
-    const currentExerciseCompletion = deriveExerciseCompletionStatus(
+  const currentExerciseCompletion = deriveExerciseCompletionStatus(
       setChecksByExercise[activeExercise.id],
       activeExercise.sets,
     );
@@ -776,6 +893,7 @@ export default function HomeClient({
 
     return (
       <main className="home">
+        {debugPanel}
         <section
           className="exercise-expanded"
           aria-label="Exercise execution"
@@ -972,6 +1090,8 @@ export default function HomeClient({
   if (view === "exercise-list" && selectedCollection) {
     return (
       <main className="home">
+        {debugPanel}
+
         <header className="home__header">
           <div className="collection-header-actions">
             <button
@@ -1029,6 +1149,8 @@ export default function HomeClient({
 
   return (
     <main className="home">
+      {debugPanel}
+
       <header className="home__header">
         <div className="home__title-row">
           <h1>Gym App</h1>

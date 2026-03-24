@@ -36,6 +36,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
       collections={collections}
       exercises={exercises}
       initialPersistedAppState={initialPersistedAppState}
+      authStatus="authenticated"
     />
   );
 }

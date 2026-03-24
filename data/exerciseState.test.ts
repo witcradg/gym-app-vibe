@@ -4,6 +4,7 @@ import {
   createSeedExercises,
   hasResumableWorkoutState,
   normalizePersistedAppState,
+  restoreNavigationState,
   type PersistedAppState,
 } from "./exerciseState";
 import type { Exercise } from "../types/exercise";
@@ -84,6 +85,27 @@ describe("normalizePersistedAppState", () => {
       activeCollectionId: null,
       activeExerciseIndex: 0,
       activeView: undefined,
+    });
+  });
+
+  it("reopens the collection with progress when saved navigation was cleared", () => {
+    const navigation = restoreNavigationState(
+      {
+        setChecksByExercise: {
+          "e-1": [true, false, false],
+        },
+        activeCollectionId: null,
+        activeExerciseIndex: 0,
+        activeView: undefined,
+      },
+      ["c-1"],
+      createSeedExercises(exercises),
+    );
+
+    expect(navigation).toEqual({
+      view: "exercise-list",
+      activeCollectionId: "c-1",
+      activeExerciseIndex: 0,
     });
   });
 });

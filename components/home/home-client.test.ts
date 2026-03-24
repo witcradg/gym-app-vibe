@@ -52,6 +52,7 @@ describe("HomeClient exercise list status symbols", () => {
         collections,
         exercises,
         initialPersistedAppState: persistedAppState,
+        authStatus: "authenticated",
       }),
     );
   };
