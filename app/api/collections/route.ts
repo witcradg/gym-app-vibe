@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { fetchCollections, upsertCollection } from "@/lib/supabase/workout-content";
+import { createCollection, fetchCollections } from "@/lib/supabase/workout-content";
 import type { CollectionRecordValues } from "@/types/workout-content-database";
 
 const normalizeString = (value: unknown): string | null => {
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: payload.error }, { status: 400 });
   }
 
-  const result = await upsertCollection(payload);
+  const result = await createCollection(payload);
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });

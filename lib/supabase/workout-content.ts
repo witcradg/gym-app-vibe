@@ -15,6 +15,8 @@ import type {
   WorkoutContentPayload,
 } from "../../types/workout-content-database";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
 const mapCollectionRow = (row: CollectionRow): Collection => ({
   id: row.id,
   name: row.name,
@@ -50,6 +52,24 @@ const toExerciseRow = (exercise: Exercise): ExerciseRow => ({
   weight: exercise.weight ?? null,
   notes: exercise.notes ?? null,
 });
+
+async function getAuthenticatedUserId(
+  client: SupabaseClient,
+): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+  const { data, error } = await client.auth.getUser();
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const userId = data.user?.id ?? null;
+
+  if (!userId) {
+    return { ok: false, error: "Authenticated user is required." };
+  }
+
+  return { ok: true, userId };
+}
 
 export async function fetchCollections(): Promise<Collection[]> {
   const client = await createClient();
@@ -130,10 +150,21 @@ export async function upsertCollection(
   collection: CollectionRecordValues,
 ): Promise<UpsertCollectionResult> {
   const client = await createClient();
+  const auth = await getAuthenticatedUserId(client);
+
+  if (!auth.ok) {
+    return auth;
+  }
 
   const { data, error: queryError } = await client
     .from("collections")
-    .upsert(toCollectionRow(collection), { onConflict: "id" })
+    .upsert(
+      {
+        ...toCollectionRow(collection),
+        user_id: auth.userId,
+      },
+      { onConflict: "id" },
+    )
     .select("id")
     .single();
 
@@ -148,14 +179,78 @@ export async function upsertCollection(
   return { ok: true, recordId: data.id };
 }
 
+export async function createCollection(
+  collection: CollectionRecordValues,
+): Promise<UpsertCollectionResult> {
+  const client = await createClient();
+  const auth = await getAuthenticatedUserId(client);
+
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const { data, error: queryError } = await client
+    .from("collections")
+    .insert({
+      ...toCollectionRow(collection),
+      user_id: auth.userId,
+    })
+    .select("id")
+    .single();
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Collection create returned no data." };
+  }
+
+  return { ok: true, recordId: data.id };
+}
+
+export async function updateCollection(
+  collection: CollectionRecordValues,
+): Promise<UpsertCollectionResult> {
+  const client = await createClient();
+
+  const { data, error: queryError } = await client
+    .from("collections")
+    .update(toCollectionRow(collection))
+    .eq("id", collection.id)
+    .select("id")
+    .single();
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Collection update returned no data." };
+  }
+
+  return { ok: true, recordId: data.id };
+}
+
 export async function upsertExercise(
   exercise: ExerciseRecordValues,
 ): Promise<UpsertExerciseResult> {
   const client = await createClient();
+  const auth = await getAuthenticatedUserId(client);
+
+  if (!auth.ok) {
+    return auth;
+  }
 
   const { data, error: queryError } = await client
     .from("exercises")
-    .upsert(toExerciseRow(exercise), { onConflict: "id" })
+    .upsert(
+      {
+        ...toExerciseRow(exercise),
+        user_id: auth.userId,
+      },
+      { onConflict: "id" },
+    )
     .select("id")
     .single();
 
@@ -165,6 +260,36 @@ export async function upsertExercise(
 
   if (!data) {
     return { ok: false, error: "Exercise upsert returned no data." };
+  }
+
+  return { ok: true, recordId: data.id };
+}
+
+export async function createExercise(
+  exercise: ExerciseRecordValues,
+): Promise<UpsertExerciseResult> {
+  const client = await createClient();
+  const auth = await getAuthenticatedUserId(client);
+
+  if (!auth.ok) {
+    return auth;
+  }
+
+  const { data, error: queryError } = await client
+    .from("exercises")
+    .insert({
+      ...toExerciseRow(exercise),
+      user_id: auth.userId,
+    })
+    .select("id")
+    .single();
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Exercise create returned no data." };
   }
 
   return { ok: true, recordId: data.id };

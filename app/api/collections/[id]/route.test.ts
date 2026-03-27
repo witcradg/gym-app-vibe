@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DELETE } from "./route";
+import { DELETE, PATCH } from "./route";
 
 const {
   mockDeleteCollection,
   mockFetchCollectionById,
   mockReassignExercisesToCollection,
+  mockUpdateCollection,
   mockUpsertCollection,
 } = vi.hoisted(() => ({
   mockDeleteCollection: vi.fn(),
   mockFetchCollectionById: vi.fn(),
   mockReassignExercisesToCollection: vi.fn(),
+  mockUpdateCollection: vi.fn(),
   mockUpsertCollection: vi.fn(),
 }));
 
@@ -18,6 +20,7 @@ vi.mock("@/lib/supabase/workout-content", () => ({
   deleteCollection: mockDeleteCollection,
   fetchCollectionById: mockFetchCollectionById,
   reassignExercisesToCollection: mockReassignExercisesToCollection,
+  updateCollection: mockUpdateCollection,
   upsertCollection: mockUpsertCollection,
 }));
 
@@ -93,5 +96,42 @@ describe("DELETE /api/collections/[id]", () => {
       "unassigned",
     );
     expect(mockDeleteCollection).toHaveBeenCalledWith("upper");
+  });
+});
+
+describe("PATCH /api/collections/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("updates an existing collection without using upsert", async () => {
+    mockFetchCollectionById.mockResolvedValueOnce({
+      id: "upper",
+      name: "Upper Body",
+      description: "Old description",
+      order: 1,
+    });
+    mockUpdateCollection.mockResolvedValueOnce({ ok: true, recordId: "upper" });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/collections/upper", {
+        method: "PATCH",
+        body: JSON.stringify({ description: "New description" }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+      { params: Promise.resolve({ id: "upper" }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ok: true, id: "upper" });
+    expect(mockUpdateCollection).toHaveBeenCalledWith({
+      id: "upper",
+      name: "Upper Body",
+      description: "New description",
+      order: 1,
+    });
+    expect(mockUpsertCollection).not.toHaveBeenCalled();
   });
 });

@@ -29,6 +29,7 @@ export type ExerciseRecordValues = Exercise & {
 
 export type CollectionRow = {
   id: string;
+  user_id?: string;
   name: string;
   description: string | null;
   order_index: number;
@@ -36,6 +37,7 @@ export type CollectionRow = {
 
 export type ExerciseRow = {
   id: string;
+  user_id?: string;
   collection_id: string;
   name: string;
   order_index: number;

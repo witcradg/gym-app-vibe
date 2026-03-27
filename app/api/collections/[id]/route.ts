@@ -4,7 +4,7 @@ import {
   deleteCollection,
   fetchCollectionById,
   reassignExercisesToCollection,
-  upsertCollection,
+  updateCollection,
 } from "@/lib/supabase/workout-content";
 import { isUnassignedCollection } from "@/lib/collection-utils";
 
@@ -55,7 +55,7 @@ export async function PATCH(
         ? payload.description.trim() || undefined
         : existing.description;
 
-  const result = await upsertCollection({
+  const result = await updateCollection({
     id,
     name,
     order:

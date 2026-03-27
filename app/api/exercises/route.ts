@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
+  createExercise,
   fetchCollectionById,
   fetchExercises,
-  upsertExercise,
 } from "@/lib/supabase/workout-content";
 import type { ExerciseRecordValues } from "@/types/workout-content-database";
 
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await upsertExercise(payload);
+  const result = await createExercise(payload);
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 500 });
