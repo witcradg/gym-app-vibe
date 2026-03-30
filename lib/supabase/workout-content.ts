@@ -1,5 +1,7 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { createClient } from "./server";
 import { sortCollectionsForDisplay } from "../collection-utils";
 import type { Collection } from "../../types/collection";
@@ -15,7 +17,7 @@ import type {
   WorkoutContentPayload,
 } from "../../types/workout-content-database";
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type WorkoutContentClient = SupabaseClient;
 
 const mapCollectionRow = (row: CollectionRow): Collection => ({
   id: row.id,
@@ -54,7 +56,7 @@ const toExerciseRow = (exercise: Exercise): ExerciseRow => ({
 });
 
 async function getAuthenticatedUserId(
-  client: SupabaseClient,
+  client: WorkoutContentClient,
 ): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
   const { data, error } = await client.auth.getUser();
 
@@ -71,9 +73,9 @@ async function getAuthenticatedUserId(
   return { ok: true, userId };
 }
 
-export async function fetchCollections(): Promise<Collection[]> {
-  const client = await createClient();
-
+export async function fetchCollectionsWithClient(
+  client: WorkoutContentClient,
+): Promise<Collection[]> {
   const { data, error: queryError } = await client
     .from("collections")
     .select("id, name, description, order_index")
@@ -90,9 +92,13 @@ export async function fetchCollections(): Promise<Collection[]> {
   );
 }
 
-export async function fetchExercises(): Promise<Exercise[]> {
-  const client = await createClient();
+export async function fetchCollections(): Promise<Collection[]> {
+  return fetchCollectionsWithClient(await createClient());
+}
 
+export async function fetchExercisesWithClient(
+  client: WorkoutContentClient,
+): Promise<Exercise[]> {
   const { data, error: queryError } = await client
     .from("exercises")
     .select("id, collection_id, name, order_index, sets, reps, weight, notes")
@@ -105,6 +111,10 @@ export async function fetchExercises(): Promise<Exercise[]> {
   }
 
   return (data ?? []).map((row) => mapExerciseRow(row as ExerciseRow));
+}
+
+export async function fetchExercises(): Promise<Exercise[]> {
+  return fetchExercisesWithClient(await createClient());
 }
 
 export async function fetchWorkoutContent(): Promise<WorkoutContentPayload> {
@@ -124,8 +134,15 @@ export async function fetchWorkoutContentCounts(): Promise<{
   collectionsCount: number;
   exercisesCount: number;
 }> {
-  const client = await createClient();
+  return fetchWorkoutContentCountsWithClient(await createClient());
+}
 
+export async function fetchWorkoutContentCountsWithClient(
+  client: WorkoutContentClient,
+): Promise<{
+  collectionsCount: number;
+  exercisesCount: number;
+}> {
   const [{ count: collectionsCount, error: collectionsError }, { count: exercisesCount, error: exercisesError }] =
     await Promise.all([
       client.from("collections").select("*", { count: "exact", head: true }),
@@ -156,12 +173,20 @@ export async function upsertCollection(
     return auth;
   }
 
+  return upsertCollectionWithClient(client, collection, auth.userId);
+}
+
+export async function upsertCollectionWithClient(
+  client: WorkoutContentClient,
+  collection: CollectionRecordValues,
+  userId: string,
+): Promise<UpsertCollectionResult> {
   const { data, error: queryError } = await client
     .from("collections")
     .upsert(
       {
         ...toCollectionRow(collection),
-        user_id: auth.userId,
+        user_id: userId,
       },
       { onConflict: "id" },
     )
@@ -189,11 +214,19 @@ export async function createCollection(
     return auth;
   }
 
+  return createCollectionWithClient(client, collection, auth.userId);
+}
+
+export async function createCollectionWithClient(
+  client: WorkoutContentClient,
+  collection: CollectionRecordValues,
+  userId: string,
+): Promise<UpsertCollectionResult> {
   const { data, error: queryError } = await client
     .from("collections")
     .insert({
       ...toCollectionRow(collection),
-      user_id: auth.userId,
+      user_id: userId,
     })
     .select("id")
     .single();
@@ -212,8 +245,13 @@ export async function createCollection(
 export async function updateCollection(
   collection: CollectionRecordValues,
 ): Promise<UpsertCollectionResult> {
-  const client = await createClient();
+  return updateCollectionWithClient(await createClient(), collection);
+}
 
+export async function updateCollectionWithClient(
+  client: WorkoutContentClient,
+  collection: CollectionRecordValues,
+): Promise<UpsertCollectionResult> {
   const { data, error: queryError } = await client
     .from("collections")
     .update(toCollectionRow(collection))
@@ -242,12 +280,20 @@ export async function upsertExercise(
     return auth;
   }
 
+  return upsertExerciseWithClient(client, exercise, auth.userId);
+}
+
+export async function upsertExerciseWithClient(
+  client: WorkoutContentClient,
+  exercise: ExerciseRecordValues,
+  userId: string,
+): Promise<UpsertExerciseResult> {
   const { data, error: queryError } = await client
     .from("exercises")
     .upsert(
       {
         ...toExerciseRow(exercise),
-        user_id: auth.userId,
+        user_id: userId,
       },
       { onConflict: "id" },
     )
@@ -275,11 +321,19 @@ export async function createExercise(
     return auth;
   }
 
+  return createExerciseWithClient(client, exercise, auth.userId);
+}
+
+export async function createExerciseWithClient(
+  client: WorkoutContentClient,
+  exercise: ExerciseRecordValues,
+  userId: string,
+): Promise<UpsertExerciseResult> {
   const { data, error: queryError } = await client
     .from("exercises")
     .insert({
       ...toExerciseRow(exercise),
-      user_id: auth.userId,
+      user_id: userId,
     })
     .select("id")
     .single();
@@ -298,8 +352,13 @@ export async function createExercise(
 export async function updateExercise(
   exercise: ExerciseRecordValues,
 ): Promise<UpsertExerciseResult> {
-  const client = await createClient();
+  return updateExerciseWithClient(await createClient(), exercise);
+}
 
+export async function updateExerciseWithClient(
+  client: WorkoutContentClient,
+  exercise: ExerciseRecordValues,
+): Promise<UpsertExerciseResult> {
   const { data, error: queryError } = await client
     .from("exercises")
     .update(toExerciseRow(exercise))
@@ -321,8 +380,13 @@ export async function updateExercise(
 export async function fetchCollectionById(
   id: string,
 ): Promise<Collection | null> {
-  const client = await createClient();
+  return fetchCollectionByIdWithClient(await createClient(), id);
+}
 
+export async function fetchCollectionByIdWithClient(
+  client: WorkoutContentClient,
+  id: string,
+): Promise<Collection | null> {
   const { data, error: queryError } = await client
     .from("collections")
     .select("id, name, description, order_index")
@@ -338,8 +402,13 @@ export async function fetchCollectionById(
 }
 
 export async function fetchExerciseById(id: string): Promise<Exercise | null> {
-  const client = await createClient();
+  return fetchExerciseByIdWithClient(await createClient(), id);
+}
 
+export async function fetchExerciseByIdWithClient(
+  client: WorkoutContentClient,
+  id: string,
+): Promise<Exercise | null> {
   const { data, error: queryError } = await client
     .from("exercises")
     .select("id, collection_id, name, order_index, sets, reps, weight, notes")
@@ -355,8 +424,13 @@ export async function fetchExerciseById(id: string): Promise<Exercise | null> {
 }
 
 export async function deleteCollection(id: string): Promise<DeleteRecordResult> {
-  const client = await createClient();
+  return deleteCollectionWithClient(await createClient(), id);
+}
 
+export async function deleteCollectionWithClient(
+  client: WorkoutContentClient,
+  id: string,
+): Promise<DeleteRecordResult> {
   const { error: queryError } = await client.from("collections").delete().eq("id", id);
 
   if (queryError) {
@@ -370,8 +444,18 @@ export async function reassignExercisesToCollection(
   sourceCollectionId: string,
   destinationCollectionId: string,
 ): Promise<DeleteRecordResult> {
-  const client = await createClient();
+  return reassignExercisesToCollectionWithClient(
+    await createClient(),
+    sourceCollectionId,
+    destinationCollectionId,
+  );
+}
 
+export async function reassignExercisesToCollectionWithClient(
+  client: WorkoutContentClient,
+  sourceCollectionId: string,
+  destinationCollectionId: string,
+): Promise<DeleteRecordResult> {
   const { error: queryError } = await client
     .from("exercises")
     .update({ collection_id: destinationCollectionId })
@@ -385,8 +469,13 @@ export async function reassignExercisesToCollection(
 }
 
 export async function deleteExercise(id: string): Promise<DeleteRecordResult> {
-  const client = await createClient();
+  return deleteExerciseWithClient(await createClient(), id);
+}
 
+export async function deleteExerciseWithClient(
+  client: WorkoutContentClient,
+  id: string,
+): Promise<DeleteRecordResult> {
   const { error: queryError } = await client.from("exercises").delete().eq("id", id);
 
   if (queryError) {
