@@ -8,7 +8,6 @@ type ExercisesPanelProps = {
   loading: boolean;
   onSelectExercise: (exerciseId: string) => void;
   onCreateExercise: () => void;
-  onDeleteExercise: (exerciseId: string) => void;
 };
 
 export function ExercisesPanel({
@@ -18,7 +17,6 @@ export function ExercisesPanel({
   loading,
   onSelectExercise,
   onCreateExercise,
-  onDeleteExercise,
 }: ExercisesPanelProps) {
   return (
     <section className="admin-panel" aria-label="Exercises">
@@ -74,7 +72,7 @@ export function ExercisesPanel({
                 <button
                   type="button"
                   className="admin-list-item__content"
-                    onClick={() => onSelectExercise(exercise.id)}
+                  onClick={() => onSelectExercise(exercise.id)}
                 >
                   <span className="admin-list-item__title-row">
                     <span className="admin-list-item__title">
@@ -88,14 +86,6 @@ export function ExercisesPanel({
                     {exercise.sets} sets
                     {exercise.reps ? ` • ${exercise.reps} reps` : ""}
                   </span>
-                </button>
-                <button
-                  type="button"
-                  className="admin-icon-button admin-icon-button--danger"
-                  onClick={() => onDeleteExercise(exercise.id)}
-                  aria-label={`Delete ${exercise.name || "exercise"}`}
-                >
-                  Delete
                 </button>
               </div>
             );

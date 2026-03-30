@@ -771,7 +771,6 @@ export default function WorkoutsDashboardPage() {
           loading={loading}
           onSelectExercise={handleSelectExercise}
           onCreateExercise={handleCreateExercise}
-          onDeleteExercise={handleDeleteExercise}
         />
 
         <div className="admin-workouts__editor-column">
