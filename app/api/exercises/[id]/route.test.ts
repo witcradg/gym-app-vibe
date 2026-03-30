@@ -73,4 +73,68 @@ describe("PATCH /api/exercises/[id]", () => {
     });
     expect(mockUpsertExercise).not.toHaveBeenCalled();
   });
+
+  it("rejects an invalid order update", async () => {
+    mockFetchExerciseById.mockResolvedValueOnce({
+      id: "bench-press",
+      collectionId: "upper",
+      name: "Bench Press",
+      order: 1,
+      sets: 3,
+      reps: "5",
+      weight: "185",
+      notes: "Old note",
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/exercises/bench-press", {
+        method: "PATCH",
+        body: JSON.stringify({ order: 0 }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+      { params: Promise.resolve({ id: "bench-press" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Exercise order must be a positive integer.",
+    });
+    expect(mockFetchCollectionById).not.toHaveBeenCalled();
+    expect(mockUpdateExercise).not.toHaveBeenCalled();
+    expect(mockUpsertExercise).not.toHaveBeenCalled();
+  });
+
+  it("rejects an invalid sets update", async () => {
+    mockFetchExerciseById.mockResolvedValueOnce({
+      id: "bench-press",
+      collectionId: "upper",
+      name: "Bench Press",
+      order: 1,
+      sets: 3,
+      reps: "5",
+      weight: "185",
+      notes: "Old note",
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/exercises/bench-press", {
+        method: "PATCH",
+        body: JSON.stringify({ sets: "0" }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+      { params: Promise.resolve({ id: "bench-press" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Exercise sets must be a positive integer.",
+    });
+    expect(mockFetchCollectionById).not.toHaveBeenCalled();
+    expect(mockUpdateExercise).not.toHaveBeenCalled();
+    expect(mockUpsertExercise).not.toHaveBeenCalled();
+  });
 });

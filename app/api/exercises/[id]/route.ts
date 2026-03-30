@@ -63,6 +63,25 @@ export async function PATCH(
   }
 
   const nextCollectionId = normalizeString(payload.collectionId) ?? existing.collectionId;
+  const nextOrder =
+    payload.order === undefined ? existing.order : parsePositiveInt(payload.order);
+  const nextSets =
+    payload.sets === undefined ? existing.sets : parsePositiveInt(payload.sets);
+
+  if (nextOrder === null) {
+    return NextResponse.json(
+      { error: "Exercise order must be a positive integer." },
+      { status: 400 },
+    );
+  }
+
+  if (nextSets === null) {
+    return NextResponse.json(
+      { error: "Exercise sets must be a positive integer." },
+      { status: 400 },
+    );
+  }
+
   const collection = await fetchCollectionById(nextCollectionId);
   if (!collection) {
     return NextResponse.json(
@@ -75,8 +94,8 @@ export async function PATCH(
     id,
     collectionId: nextCollectionId,
     name: normalizeString(payload.name) ?? existing.name,
-    order: parsePositiveInt(payload.order) ?? existing.order,
-    sets: parsePositiveInt(payload.sets) ?? existing.sets,
+    order: nextOrder,
+    sets: nextSets,
     reps:
       payload.reps === null
         ? undefined

@@ -2,7 +2,7 @@ type CollectionDraft = {
   id: string;
   name: string;
   description: string;
-  order: number;
+  order: string;
 };
 
 type CollectionEditorProps = {
@@ -79,7 +79,8 @@ export function CollectionEditor({
               type="number"
               min={1}
               step={1}
-              value={String(draft.order)}
+              inputMode="numeric"
+              value={draft.order}
               onChange={(event) => onChange("order", event.target.value)}
               placeholder="1"
             />

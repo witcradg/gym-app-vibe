@@ -17,6 +17,14 @@ const normalizeString = (value: unknown): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const parsePositiveInt = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+
+  return null;
+};
+
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> },
@@ -54,16 +62,20 @@ export async function PATCH(
       : typeof payload.description === "string"
         ? payload.description.trim() || undefined
         : existing.description;
+  const nextOrder =
+    payload.order === undefined ? existing.order : parsePositiveInt(payload.order);
+
+  if (nextOrder === null) {
+    return NextResponse.json(
+      { error: "Collection order must be a positive integer." },
+      { status: 400 },
+    );
+  }
 
   const result = await updateCollection({
     id,
     name,
-    order:
-      typeof payload.order === "number" &&
-      Number.isInteger(payload.order) &&
-      payload.order >= 1
-        ? payload.order
-        : existing.order,
+    order: nextOrder,
     description,
   });
 

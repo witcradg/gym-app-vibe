@@ -134,4 +134,31 @@ describe("PATCH /api/collections/[id]", () => {
     });
     expect(mockUpsertCollection).not.toHaveBeenCalled();
   });
+
+  it("rejects an invalid order update", async () => {
+    mockFetchCollectionById.mockResolvedValueOnce({
+      id: "upper",
+      name: "Upper Body",
+      description: "Old description",
+      order: 1,
+    });
+
+    const response = await PATCH(
+      new Request("http://localhost/api/collections/upper", {
+        method: "PATCH",
+        body: JSON.stringify({ order: 0 }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }),
+      { params: Promise.resolve({ id: "upper" }) },
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "Collection order must be a positive integer.",
+    });
+    expect(mockUpdateCollection).not.toHaveBeenCalled();
+    expect(mockUpsertCollection).not.toHaveBeenCalled();
+  });
 });

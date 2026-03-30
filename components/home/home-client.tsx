@@ -954,6 +954,7 @@ export default function HomeClient({
                 type="number"
                 className="plan-adjust-input"
                 min={1}
+                step={1}
                 inputMode="numeric"
                 value={activeExercise.sets}
                 onChange={(event) =>
