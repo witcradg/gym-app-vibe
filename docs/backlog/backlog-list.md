@@ -3,17 +3,11 @@ database implementation.
 - timestamps for interactions.
 - add a timer on timed exercises
 
-Reset not working
-
-Move the three strides warm ups into the warm up cart. You.
+When presented, the dashboard/workouts Exercise Details form should stay within the desktop view. If larger than the view (e.g. phones) start editing with the top of the form in the view but allow scrolling so all fields and buttons are available.
 
 PWA implementation - continue chat called App-like Experience Suggestions if possible
 
-Remove the Delete button from the main exercise list on the dashboard/workout page
-
 Remove the order numbering and add ability for user to drag and drop order change in the dashboard.
-
-Found some issues on the phone with the up and down arrows not appearing so the user cannot change sets.
 
 Confirm usability issues with dashboard/workout editing on the phone UI
 Confirm on phone that checkboxes do not reset when the user accidentally leaves the app.
