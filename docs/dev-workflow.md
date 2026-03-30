@@ -62,6 +62,25 @@ reps: "AMRAP"
 
 ---
 
+# Integer Input Rule
+
+For required integer fields in forms and API payloads:
+
+- keep draft form state as `string`
+- parse and validate at save or submit time
+- reject invalid integer values in both `POST` and `PATCH` handlers with `400`
+
+For numeric inputs in the UI, prefer:
+
+- `type="number"`
+- `min={1}`
+- `step={1}`
+- `inputMode="numeric"` when appropriate
+
+Do not silently coerce partial or invalid integer input into fallback values during editing.
+
+---
+
 # Default Change Workflow
 
 For most fixes or features:

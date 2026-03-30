@@ -22,7 +22,7 @@ type CollectionDraft = {
   id: string;
   name: string;
   description: string;
-  order: number;
+  order: string;
 };
 
 type ExerciseDraft = {
@@ -55,7 +55,7 @@ const collectionToDraft = (collection: Collection): CollectionDraft => ({
   id: collection.id,
   name: collection.name,
   description: collection.description ?? "",
-  order: collection.order,
+  order: String(collection.order),
 });
 
 const exerciseToDraft = (exercise: Exercise): ExerciseDraft => ({
@@ -274,11 +274,12 @@ export default function WorkoutsDashboardPage() {
       id: nextCollectionId,
       name: "",
       description: "",
-      order:
+      order: String(
         collections.reduce(
           (currentMax, collection) => Math.max(currentMax, collection.order),
           0,
         ) + 1,
+      ),
     });
   };
 
@@ -389,12 +390,14 @@ export default function WorkoutsDashboardPage() {
       return;
     }
 
+    const parsedOrder = Number.parseInt(collectionDraft.order, 10);
+
     if (!collectionDraft.name.trim()) {
       setErrorMessage("Collection name is required.");
       return;
     }
 
-    if (!Number.isInteger(collectionDraft.order) || collectionDraft.order < 1) {
+    if (!Number.isInteger(parsedOrder) || parsedOrder < 1) {
       setErrorMessage("Display order must be an integer greater than or equal to 1.");
       return;
     }
@@ -418,7 +421,7 @@ export default function WorkoutsDashboardPage() {
           id: collectionDraft.id,
           name: collectionDraft.name,
           description: collectionDraft.description,
-          order: collectionDraft.order,
+          order: parsedOrder,
         }),
       });
 
@@ -432,7 +435,7 @@ export default function WorkoutsDashboardPage() {
         id: collectionDraft.id,
         name: collectionDraft.name.trim(),
         description: collectionDraft.description.trim() || undefined,
-        order: collectionDraft.order,
+        order: parsedOrder,
       };
       const nextCollections = sortCollectionsForDisplay([
         ...collections.filter((collection) => collection.id !== nextCollection.id),
@@ -653,14 +656,6 @@ export default function WorkoutsDashboardPage() {
     setCollectionDraft((current) => {
       if (!current) {
         return current;
-      }
-
-      if (field === "order") {
-        const parsedOrder = Number.parseInt(value, 10);
-        return {
-          ...current,
-          order: Number.isInteger(parsedOrder) ? parsedOrder : 0,
-        };
       }
 
       return { ...current, [field]: value };
