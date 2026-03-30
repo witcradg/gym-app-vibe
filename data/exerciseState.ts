@@ -105,6 +105,20 @@ export const buildPersistenceState = (
   activeView: navigation.activeView,
 });
 
+export const resetResumableWorkoutSession = (
+  currentExercises: RuntimeExercise[],
+): {
+  navigation: NavigationState;
+  setChecksByExercise: Record<string, boolean[]>;
+} => ({
+  navigation: {
+    view: "collections",
+    activeCollectionId: null,
+    activeExerciseIndex: 0,
+  },
+  setChecksByExercise: buildInitialSetChecks(currentExercises),
+});
+
 export const hasCheckedSets = (
   setChecksByExercise: Record<string, boolean[]>,
 ) =>

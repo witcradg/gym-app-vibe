@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import type { PersistedAppState } from "@/data/exerciseState";
 import {
+  deleteWorkoutAppState,
   fetchWorkoutAppState,
   saveWorkoutAppState,
 } from "@/lib/supabase/workout-app-state";
@@ -35,6 +36,16 @@ export async function POST(request: Request) {
     route,
     payloadSource: getPayloadSource(request, "client-persist"),
   });
+
+  if (!result.ok) {
+    return NextResponse.json(result, { status: 500 });
+  }
+
+  return NextResponse.json(result);
+}
+
+export async function DELETE() {
+  const result = await deleteWorkoutAppState();
 
   if (!result.ok) {
     return NextResponse.json(result, { status: 500 });

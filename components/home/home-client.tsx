@@ -23,6 +23,7 @@ import {
   deriveExerciseCompletionStatus,
   hasCheckedSets,
   normalizePersistedAppState,
+  resetResumableWorkoutSession,
   restoreNavigationState,
 } from "../../data/exerciseState";
 import type {
@@ -552,6 +553,22 @@ export default function HomeClient({
     }
   };
 
+  const deletePersistedWorkoutSession = async (payloadSource: string) => {
+    const response = await fetch("/api/workout-app-state", {
+      method: "DELETE",
+      headers: {
+        "x-gym-app-payload-source": payloadSource,
+      },
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | { ok?: boolean; error?: string }
+      | null;
+
+    if (!response.ok || !payload?.ok) {
+      throw new Error(payload?.error || "Failed to reset workout session.");
+    }
+  };
+
   const handleToggleSet = (exerciseId: string, setIndex: number) => {
     markSessionMutated();
     setSetChecksByExercise((currentChecks) => {
@@ -724,24 +741,39 @@ export default function HomeClient({
     setExerciseSaveState(null);
   };
 
-  const handleResetCollection = () => {
-    hasExplicitSessionResetRef.current = true;
-    markSessionMutated();
+  const handleResetCollection = async () => {
+    const resetState = resetResumableWorkoutSession(exerciseState);
+    const clearedPersistenceState = buildPersistenceState(
+      resetState.setChecksByExercise,
+      {
+        activeCollectionId: null,
+        activeExerciseIndex: 0,
+        activeView: "exercise-list",
+      },
+    );
 
-    if (!activeCollectionId) {
-      return;
+    if (persistTimerRef.current) {
+      window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
     }
 
-    setSetChecksByExercise((currentChecks) => {
-      const nextChecks = { ...currentChecks };
+    hasAttemptedRehydrateRef.current = true;
+    hasExplicitSessionResetRef.current = false;
+    hasUserMutatedSessionRef.current = false;
+    hasHydratedPersistedSessionRef.current = false;
+    latestPersistedSessionRef.current = null;
+    setDebugStateSource("local");
+    setDebugPersistedStateFound(false);
+    setDebugLoadedCheckedCount(0);
+    setDebugHydrationApplied(false);
+    setDebugLastSaveStatus(null);
 
-      for (const exercise of orderedExercises) {
-        nextChecks[exercise.id] = Array.from({ length: exercise.sets }, () => false);
-      }
-
-      return nextChecks;
-    });
-
+    setSetChecksByExercise(resetState.setChecksByExercise);
+    setView(resetState.navigation.view);
+    setActiveCollectionId(resetState.navigation.activeCollectionId);
+    setActiveExerciseIndex(resetState.navigation.activeExerciseIndex);
+    setIsAdjustingPlan(false);
+    setIsJumpMenuOpen(false);
     setShowResetFeedback(true);
 
     if (resetFeedbackTimerRef.current) {
@@ -752,6 +784,27 @@ export default function HomeClient({
       setShowResetFeedback(false);
       resetFeedbackTimerRef.current = null;
     }, 1800);
+
+    try {
+      await deletePersistedWorkoutSession("client-reset-session");
+    } catch (deleteError) {
+      try {
+        await persistCurrentWorkoutSession(
+          clearedPersistenceState,
+          false,
+          "client-reset-session-fallback",
+        );
+      } catch (persistError) {
+        console.error(
+          "Failed to reset workout session",
+          persistError instanceof Error
+            ? persistError.message
+            : deleteError instanceof Error
+              ? deleteError.message
+              : deleteError,
+        );
+      }
+    }
   };
 
   const moveToAdjacentExercise = (offset: -1 | 1) => {
