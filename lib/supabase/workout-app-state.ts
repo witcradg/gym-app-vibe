@@ -1,11 +1,13 @@
 "use server";
 
+import type { SupabaseClient as BaseSupabaseClient } from "@supabase/supabase-js";
+
 import type { PersistedAppState } from "../../data/exerciseState";
 import { createClient } from "./server";
 
 const GYM_APP_STATE_ROW_ID = "gym-app-state";
 
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+type WorkoutAppStateClient = BaseSupabaseClient;
 
 type WorkoutAppStateRow = {
   id: string;
@@ -68,7 +70,10 @@ function resolveLogContext(options?: Partial<WorkoutAppStateLogContext>) {
   };
 }
 
-async function getAuthenticatedUserId(client: SupabaseClient, context: WorkoutAppStateLogContext) {
+async function getAuthenticatedUserId(
+  client: WorkoutAppStateClient,
+  context: WorkoutAppStateLogContext,
+) {
   const { data, error } = await client.auth.getUser();
 
   if (error) {
@@ -105,6 +110,16 @@ export async function fetchWorkoutAppState(
   const context = resolveLogContext(options);
   const client = await createClient();
   const userId = await getAuthenticatedUserId(client, context);
+
+  return fetchWorkoutAppStateWithClient(client, userId, options);
+}
+
+export async function fetchWorkoutAppStateWithClient(
+  client: WorkoutAppStateClient,
+  userId: string | null,
+  options?: FetchWorkoutAppStateOptions,
+): Promise<PersistedAppState | null> {
+  const context = resolveLogContext(options);
 
   logWorkoutAppStateEvent("read_start", {
     route: context.route,
@@ -167,6 +182,17 @@ export async function saveWorkoutAppState(
   const context = resolveLogContext(options);
   const client = await createClient();
   const userId = await getAuthenticatedUserId(client, context);
+
+  return saveWorkoutAppStateWithClient(client, userId, state, options);
+}
+
+export async function saveWorkoutAppStateWithClient(
+  client: WorkoutAppStateClient,
+  userId: string | null,
+  state: PersistedAppState,
+  options?: SaveWorkoutAppStateOptions,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const context = resolveLogContext(options);
 
   logWorkoutAppStateEvent("write_start", {
     route: context.route,
@@ -246,6 +272,13 @@ export async function deleteWorkoutAppState(): Promise<
   const client = await createClient();
   const userId = await getAuthenticatedUserId(client, context);
 
+  return deleteWorkoutAppStateWithClient(client, userId);
+}
+
+export async function deleteWorkoutAppStateWithClient(
+  client: WorkoutAppStateClient,
+  userId: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!userId) {
     return {
       ok: false,

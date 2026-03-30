@@ -1,38 +1,12 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { PersistedAppState } from "../../data/exerciseState";
-
-const loadLocalEnvFile = () => {
-  const envPath = join(process.cwd(), ".env.local");
-  const fileContents = readFileSync(envPath, "utf8");
-
-  for (const rawLine of fileContents.split("\n")) {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-
-    const equalsIndex = line.indexOf("=");
-    if (equalsIndex < 1) {
-      continue;
-    }
-
-    const key = line.slice(0, equalsIndex).trim();
-    const rawValue = line.slice(equalsIndex + 1).trim();
-    const unquotedValue =
-      rawValue.startsWith('"') && rawValue.endsWith('"')
-        ? rawValue.slice(1, -1)
-        : rawValue;
-
-    if (!process.env[key]) {
-      process.env[key] = unquotedValue;
-    }
-  }
-};
+import {
+  createAuthenticatedIntegrationTestClient,
+  loadLocalEnvFile,
+  resolveIntegrationTestUserId,
+} from "./integration-test-helpers";
 
 loadLocalEnvFile();
 
@@ -47,37 +21,50 @@ const temporaryState: PersistedAppState = {
 };
 
 let originalState: PersistedAppState | null = null;
+let client: SupabaseClient | null = null;
+let userId: string | null = null;
 
 describe("supabase workout app state round trip", () => {
   beforeAll(async () => {
-    const { fetchWorkoutAppState } = await import("./workout-app-state");
-    originalState = await fetchWorkoutAppState();
+    client = await createAuthenticatedIntegrationTestClient();
+    userId = await resolveIntegrationTestUserId(client);
+
+    const { fetchWorkoutAppStateWithClient } = await import("./workout-app-state");
+    originalState = await fetchWorkoutAppStateWithClient(client, userId);
   });
 
   afterAll(async () => {
-    const { deleteWorkoutAppState, saveWorkoutAppState } = await import(
+    if (!client || !userId) {
+      return;
+    }
+
+    const { deleteWorkoutAppStateWithClient, saveWorkoutAppStateWithClient } = await import(
       "./workout-app-state"
     );
 
     if (originalState) {
-      const result = await saveWorkoutAppState(originalState);
+      const result = await saveWorkoutAppStateWithClient(client, userId, originalState);
       expect(result.ok).toBe(true);
       return;
     }
 
-    const result = await deleteWorkoutAppState();
+    const result = await deleteWorkoutAppStateWithClient(client, userId);
     expect(result.ok).toBe(true);
   });
 
   it("writes and reads the gym_app_state row", async () => {
-    const { fetchWorkoutAppState, saveWorkoutAppState } = await import(
+    const { fetchWorkoutAppStateWithClient, saveWorkoutAppStateWithClient } = await import(
       "./workout-app-state"
     );
 
-    const saveResult = await saveWorkoutAppState(temporaryState);
+    const saveResult = await saveWorkoutAppStateWithClient(
+      client!,
+      userId!,
+      temporaryState,
+    );
     expect(saveResult.ok).toBe(true);
 
-    const fetchedState = await fetchWorkoutAppState();
+    const fetchedState = await fetchWorkoutAppStateWithClient(client!, userId!);
 
     expect(fetchedState).toEqual(temporaryState);
   });

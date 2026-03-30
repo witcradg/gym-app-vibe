@@ -7,7 +7,11 @@
     "build": "node scripts/build-with-metadata.mjs",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts",
+    "test:supabase-read": "vitest run lib/supabase/workout-content.integration.test.ts",
+    "test:supabase-state": "vitest run lib/supabase/workout-app-state.integration.test.ts",
+    "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts"
   },
   "archivedScripts": {
     "build:legacy": "node scripts/build-with-metadata.mjs",

@@ -1,40 +1,14 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Collection } from "../../types/collection";
 import type { Exercise } from "../../types/exercise";
 import { findUnassignedCollection } from "../collection-utils";
-
-const loadLocalEnvFile = () => {
-  const envPath = join(process.cwd(), ".env.local");
-  const fileContents = readFileSync(envPath, "utf8");
-
-  for (const rawLine of fileContents.split("\n")) {
-    const line = rawLine.trim();
-
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
-
-    const equalsIndex = line.indexOf("=");
-    if (equalsIndex < 1) {
-      continue;
-    }
-
-    const key = line.slice(0, equalsIndex).trim();
-    const rawValue = line.slice(equalsIndex + 1).trim();
-    const unquotedValue =
-      rawValue.startsWith('"') && rawValue.endsWith('"')
-        ? rawValue.slice(1, -1)
-        : rawValue;
-
-    if (!process.env[key]) {
-      process.env[key] = unquotedValue;
-    }
-  }
-};
+import {
+  createAuthenticatedIntegrationTestClient,
+  loadLocalEnvFile,
+  resolveIntegrationTestUserId,
+} from "./integration-test-helpers";
 
 loadLocalEnvFile();
 
@@ -88,103 +62,156 @@ let originalCollection: Collection | null = null;
 let originalDestinationCollection: Collection | null = null;
 let originalExercise: Exercise | null = null;
 let unassignedCollection: Collection | null = null;
+let client: SupabaseClient | null = null;
+let userId: string | null = null;
 
 describe("supabase workout content crud", () => {
   beforeAll(async () => {
-    const { fetchCollectionById, fetchCollections, fetchExerciseById } = await import(
-      "./workout-content"
-    );
+    client = await createAuthenticatedIntegrationTestClient();
+    userId = await resolveIntegrationTestUserId(client);
 
-    originalCollection = await fetchCollectionById(TEST_COLLECTION_ID);
-    originalDestinationCollection = await fetchCollectionById(TEST_DESTINATION_COLLECTION_ID);
-    originalExercise = await fetchExerciseById(TEST_EXERCISE_ID);
-    unassignedCollection = findUnassignedCollection(await fetchCollections());
+    const {
+      fetchCollectionByIdWithClient,
+      fetchCollectionsWithClient,
+      fetchExerciseByIdWithClient,
+    } = await import("./workout-content");
+
+    originalCollection = await fetchCollectionByIdWithClient(client, TEST_COLLECTION_ID);
+    originalDestinationCollection = await fetchCollectionByIdWithClient(
+      client,
+      TEST_DESTINATION_COLLECTION_ID,
+    );
+    originalExercise = await fetchExerciseByIdWithClient(client, TEST_EXERCISE_ID);
+    unassignedCollection = findUnassignedCollection(
+      await fetchCollectionsWithClient(client),
+    );
   });
 
   afterAll(async () => {
+    if (!client || !userId) {
+      return;
+    }
+
     const {
-      deleteCollection,
-      deleteExercise,
-      upsertCollection,
-      upsertExercise,
+      deleteCollectionWithClient,
+      deleteExerciseWithClient,
+      upsertCollectionWithClient,
+      upsertExerciseWithClient,
     } = await import("./workout-content");
 
     if (originalCollection) {
-      const result = await upsertCollection(originalCollection);
+      const result = await upsertCollectionWithClient(client, originalCollection, userId);
       expect(result.ok).toBe(true);
     }
 
     if (originalDestinationCollection) {
-      const result = await upsertCollection(originalDestinationCollection);
+      const result = await upsertCollectionWithClient(
+        client,
+        originalDestinationCollection,
+        userId,
+      );
       expect(result.ok).toBe(true);
     }
 
     if (originalExercise) {
-      const result = await upsertExercise(originalExercise);
+      const result = await upsertExerciseWithClient(client, originalExercise, userId);
       expect(result.ok).toBe(true);
     } else {
-      const result = await deleteExercise(TEST_EXERCISE_ID);
+      const result = await deleteExerciseWithClient(client, TEST_EXERCISE_ID);
       expect(result.ok).toBe(true);
     }
 
     if (!originalCollection) {
-      const result = await deleteCollection(TEST_COLLECTION_ID);
+      const result = await deleteCollectionWithClient(client, TEST_COLLECTION_ID);
       expect(result.ok).toBe(true);
     }
 
     if (!originalDestinationCollection) {
-      const result = await deleteCollection(TEST_DESTINATION_COLLECTION_ID);
+      const result = await deleteCollectionWithClient(
+        client,
+        TEST_DESTINATION_COLLECTION_ID,
+      );
       expect(result.ok).toBe(true);
     }
   });
 
   it("creates, updates, reads, and deletes collection and exercise records", async () => {
     const {
-      deleteExercise,
-      reassignExercisesToCollection,
-      deleteCollection,
-      fetchCollectionById,
-      fetchExerciseById,
-      upsertCollection,
-      upsertExercise,
+      deleteExerciseWithClient,
+      reassignExercisesToCollectionWithClient,
+      deleteCollectionWithClient,
+      fetchCollectionByIdWithClient,
+      fetchExerciseByIdWithClient,
+      upsertCollectionWithClient,
+      upsertExerciseWithClient,
     } = await import("./workout-content");
 
-    const initialExerciseDelete = await deleteExercise(TEST_EXERCISE_ID);
+    const initialExerciseDelete = await deleteExerciseWithClient(client!, TEST_EXERCISE_ID);
     expect(initialExerciseDelete.ok).toBe(true);
 
-    const initialCollectionDelete = await deleteCollection(TEST_COLLECTION_ID);
+    const initialCollectionDelete = await deleteCollectionWithClient(
+      client!,
+      TEST_COLLECTION_ID,
+    );
     expect(initialCollectionDelete.ok).toBe(true);
 
-    const initialDestinationCollectionDelete = await deleteCollection(
+    const initialDestinationCollectionDelete = await deleteCollectionWithClient(
+      client!,
       TEST_DESTINATION_COLLECTION_ID,
     );
     expect(initialDestinationCollectionDelete.ok).toBe(true);
 
-    const createCollectionResult = await upsertCollection(baseCollection);
+    const createCollectionResult = await upsertCollectionWithClient(
+      client!,
+      baseCollection,
+      userId!,
+    );
     expect(createCollectionResult.ok).toBe(true);
 
-    const createdCollection = await fetchCollectionById(TEST_COLLECTION_ID);
+    const createdCollection = await fetchCollectionByIdWithClient(client!, TEST_COLLECTION_ID);
     expect(createdCollection).toEqual(baseCollection);
 
-    const updateCollectionResult = await upsertCollection(updatedCollection);
+    const updateCollectionResult = await upsertCollectionWithClient(
+      client!,
+      updatedCollection,
+      userId!,
+    );
     expect(updateCollectionResult.ok).toBe(true);
 
-    const fetchedUpdatedCollection = await fetchCollectionById(TEST_COLLECTION_ID);
+    const fetchedUpdatedCollection = await fetchCollectionByIdWithClient(
+      client!,
+      TEST_COLLECTION_ID,
+    );
     expect(fetchedUpdatedCollection).toEqual(updatedCollection);
 
-    const createDestinationCollectionResult = await upsertCollection(destinationCollection);
+    const createDestinationCollectionResult = await upsertCollectionWithClient(
+      client!,
+      destinationCollection,
+      userId!,
+    );
     expect(createDestinationCollectionResult.ok).toBe(true);
 
-    const createExerciseResult = await upsertExercise(baseExercise);
+    const createExerciseResult = await upsertExerciseWithClient(
+      client!,
+      baseExercise,
+      userId!,
+    );
     expect(createExerciseResult.ok).toBe(true);
 
-    const createdExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    const createdExercise = await fetchExerciseByIdWithClient(client!, TEST_EXERCISE_ID);
     expect(createdExercise).toEqual(baseExercise);
 
-    const updateExerciseResult = await upsertExercise(updatedExercise);
+    const updateExerciseResult = await upsertExerciseWithClient(
+      client!,
+      updatedExercise,
+      userId!,
+    );
     expect(updateExerciseResult.ok).toBe(true);
 
-    const fetchedUpdatedExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    const fetchedUpdatedExercise = await fetchExerciseByIdWithClient(
+      client!,
+      TEST_EXERCISE_ID,
+    );
     expect(fetchedUpdatedExercise).toEqual(updatedExercise);
 
     const movedExercise: Exercise = {
@@ -193,38 +220,49 @@ describe("supabase workout content crud", () => {
       order: 1,
     };
 
-    const moveExerciseResult = await upsertExercise(movedExercise);
+    const moveExerciseResult = await upsertExerciseWithClient(
+      client!,
+      movedExercise,
+      userId!,
+    );
     expect(moveExerciseResult.ok).toBe(true);
 
-    const fetchedMovedExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    const fetchedMovedExercise = await fetchExerciseByIdWithClient(client!, TEST_EXERCISE_ID);
     expect(fetchedMovedExercise).toEqual(movedExercise);
 
     expect(unassignedCollection).not.toBeNull();
 
-    const reassignmentResult = await reassignExercisesToCollection(
+    const reassignmentResult = await reassignExercisesToCollectionWithClient(
+      client!,
       TEST_DESTINATION_COLLECTION_ID,
       unassignedCollection!.id,
     );
     expect(reassignmentResult.ok).toBe(true);
 
-    const reassignedExercise = await fetchExerciseById(TEST_EXERCISE_ID);
+    const reassignedExercise = await fetchExerciseByIdWithClient(client!, TEST_EXERCISE_ID);
     expect(reassignedExercise).toEqual({
       ...movedExercise,
       collectionId: unassignedCollection!.id,
     });
 
-    const deleteCollectionResult = await deleteCollection(TEST_COLLECTION_ID);
+    const deleteCollectionResult = await deleteCollectionWithClient(
+      client!,
+      TEST_COLLECTION_ID,
+    );
     expect(deleteCollectionResult.ok).toBe(true);
-    expect(await fetchCollectionById(TEST_COLLECTION_ID)).toBeNull();
+    expect(await fetchCollectionByIdWithClient(client!, TEST_COLLECTION_ID)).toBeNull();
 
-    const deleteDestinationCollectionResult = await deleteCollection(
+    const deleteDestinationCollectionResult = await deleteCollectionWithClient(
+      client!,
       TEST_DESTINATION_COLLECTION_ID,
     );
     expect(deleteDestinationCollectionResult.ok).toBe(true);
-    expect(await fetchCollectionById(TEST_DESTINATION_COLLECTION_ID)).toBeNull();
+    expect(
+      await fetchCollectionByIdWithClient(client!, TEST_DESTINATION_COLLECTION_ID),
+    ).toBeNull();
 
-    const deleteExerciseResult = await deleteExercise(TEST_EXERCISE_ID);
+    const deleteExerciseResult = await deleteExerciseWithClient(client!, TEST_EXERCISE_ID);
     expect(deleteExerciseResult.ok).toBe(true);
-    expect(await fetchExerciseById(TEST_EXERCISE_ID)).toBeNull();
+    expect(await fetchExerciseByIdWithClient(client!, TEST_EXERCISE_ID)).toBeNull();
   });
 });
