@@ -3,6 +3,8 @@ database implementation.
 - timestamps for interactions.
 - add a timer on timed exercises
 
+Reset not working
+
 Move the three strides warm ups into the warm up cart. You.
 
 PWA implementation - continue chat called App-like Experience Suggestions if possible
