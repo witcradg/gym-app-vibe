@@ -4,6 +4,7 @@ import {
   createSeedExercises,
   hasResumableWorkoutState,
   normalizePersistedAppState,
+  resetResumableWorkoutSession,
   restoreNavigationState,
   type PersistedAppState,
 } from "./exerciseState";
@@ -130,5 +131,35 @@ describe("hasResumableWorkoutState", () => {
         activeCollectionId: null,
       }),
     ).toBe(false);
+  });
+});
+
+describe("resetResumableWorkoutSession", () => {
+  it("clears all set checks and returns to the collections screen", () => {
+    const currentExercises = createSeedExercises([
+      ...exercises,
+      {
+        id: "e-2",
+        collectionId: "c-2",
+        name: "Rows",
+        order: 1,
+        sets: 2,
+        reps: "10",
+        weight: "80",
+        notes: "",
+      },
+    ]);
+
+    expect(resetResumableWorkoutSession(currentExercises)).toEqual({
+      navigation: {
+        view: "collections",
+        activeCollectionId: null,
+        activeExerciseIndex: 0,
+      },
+      setChecksByExercise: {
+        "e-1": [false, false, false],
+        "e-2": [false, false],
+      },
+    });
   });
 });

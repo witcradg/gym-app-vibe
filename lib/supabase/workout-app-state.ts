@@ -30,39 +30,6 @@ const DEFAULT_LOG_CONTEXT: WorkoutAppStateLogContext = {
   payloadSource: "unknown",
 };
 
-function countCheckedSets(setChecksByExercise: Record<string, boolean[]> | undefined) {
-  return Object.values(setChecksByExercise ?? {}).reduce(
-    (total, setChecks) => total + setChecks.filter(Boolean).length,
-    0,
-  );
-}
-
-function summarizeState(state: PersistedAppState | null | undefined, updatedAt?: string) {
-  return {
-    checkedCount: countCheckedSets(state?.setChecksByExercise),
-    updatedAt: updatedAt ?? state?.updatedAt ?? null,
-  };
-}
-
-function logWorkoutAppStateEvent(
-  event: string,
-  details: Record<string, unknown>,
-  level: "info" | "error" = "info",
-) {
-  const payload = {
-    scope: "gym_app_state",
-    event,
-    ...details,
-  };
-
-  if (level === "error") {
-    console.error(JSON.stringify(payload));
-    return;
-  }
-
-  console.info(JSON.stringify(payload));
-}
-
 function resolveLogContext(options?: Partial<WorkoutAppStateLogContext>) {
   return {
     route: options?.route ?? DEFAULT_LOG_CONTEXT.route,
@@ -74,32 +41,14 @@ async function getAuthenticatedUserId(
   client: WorkoutAppStateClient,
   context: WorkoutAppStateLogContext,
 ) {
+  void context;
   const { data, error } = await client.auth.getUser();
 
   if (error) {
-    logWorkoutAppStateEvent(
-      "auth_lookup_error",
-      {
-        route: context.route,
-        payloadSource: context.payloadSource,
-        rowId: GYM_APP_STATE_ROW_ID,
-        error: error.message,
-      },
-      "error",
-    );
     return null;
   }
 
   const userId = data.user?.id ?? null;
-
-  if (!userId) {
-    logWorkoutAppStateEvent("auth_lookup_missing_user", {
-      route: context.route,
-      payloadSource: context.payloadSource,
-      rowId: GYM_APP_STATE_ROW_ID,
-      userId: null,
-    });
-  }
 
   return userId;
 }
@@ -117,26 +66,10 @@ export async function fetchWorkoutAppState(
 export async function fetchWorkoutAppStateWithClient(
   client: WorkoutAppStateClient,
   userId: string | null,
-  options?: FetchWorkoutAppStateOptions,
+  _options?: FetchWorkoutAppStateOptions,
 ): Promise<PersistedAppState | null> {
-  const context = resolveLogContext(options);
-
-  logWorkoutAppStateEvent("read_start", {
-    route: context.route,
-    payloadSource: context.payloadSource,
-    rowId: GYM_APP_STATE_ROW_ID,
-    userId,
-  });
-
+  void _options;
   if (!userId) {
-    logWorkoutAppStateEvent("read_result", {
-      route: context.route,
-      payloadSource: context.payloadSource,
-      rowId: GYM_APP_STATE_ROW_ID,
-      userId,
-      found: false,
-      ...summarizeState(null),
-    });
     return null;
   }
 
@@ -148,29 +81,10 @@ export async function fetchWorkoutAppStateWithClient(
     .maybeSingle();
 
   if (error) {
-    logWorkoutAppStateEvent(
-      "read_error",
-      {
-        route: context.route,
-        payloadSource: context.payloadSource,
-        rowId: GYM_APP_STATE_ROW_ID,
-        userId,
-        error: error.message,
-      },
-      "error",
-    );
     return null;
   }
 
   const row = data as WorkoutAppStateRow | null;
-  logWorkoutAppStateEvent("read_result", {
-    route: context.route,
-    payloadSource: context.payloadSource,
-    rowId: GYM_APP_STATE_ROW_ID,
-    userId,
-    found: row !== null,
-    ...summarizeState(row?.state, row?.updated_at),
-  });
 
   return row?.state ?? null;
 }
@@ -190,36 +104,13 @@ export async function saveWorkoutAppStateWithClient(
   client: WorkoutAppStateClient,
   userId: string | null,
   state: PersistedAppState,
-  options?: SaveWorkoutAppStateOptions,
+  _options?: SaveWorkoutAppStateOptions,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const context = resolveLogContext(options);
-
-  logWorkoutAppStateEvent("write_start", {
-    route: context.route,
-    payloadSource: context.payloadSource,
-    rowId: GYM_APP_STATE_ROW_ID,
-    userId,
-    ...summarizeState(state),
-  });
-
+  void _options;
   if (!userId) {
-    const error = "Authenticated user is required to save workout app state";
-    logWorkoutAppStateEvent(
-      "write_error",
-      {
-        route: context.route,
-        payloadSource: context.payloadSource,
-        rowId: GYM_APP_STATE_ROW_ID,
-        userId,
-        error,
-        ...summarizeState(state),
-      },
-      "error",
-    );
-
     return {
       ok: false,
-      error,
+      error: "Authenticated user is required to save workout app state",
     };
   }
 
@@ -235,29 +126,8 @@ export async function saveWorkoutAppStateWithClient(
   );
 
   if (error) {
-    logWorkoutAppStateEvent(
-      "write_error",
-      {
-        route: context.route,
-        payloadSource: context.payloadSource,
-        rowId: GYM_APP_STATE_ROW_ID,
-        userId,
-        error: error.message,
-        ...summarizeState(state, updatedAt),
-      },
-      "error",
-    );
     return { ok: false, error: error.message };
   }
-
-  logWorkoutAppStateEvent("write_result", {
-    route: context.route,
-    payloadSource: context.payloadSource,
-    rowId: GYM_APP_STATE_ROW_ID,
-    userId,
-    ok: true,
-    ...summarizeState(state, updatedAt),
-  });
 
   return { ok: true };
 }
@@ -293,7 +163,6 @@ export async function deleteWorkoutAppStateWithClient(
     .eq("user_id", userId);
 
   if (error) {
-    console.error("Supabase app state delete failed", { userId, error });
     return { ok: false, error: error.message };
   }
 
