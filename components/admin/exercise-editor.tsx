@@ -146,7 +146,7 @@ export function ExerciseEditor({
               onClick={onSave}
               disabled={loading}
             >
-              {mode === "create" ? "Create Exercise" : "Save Exercise"}
+              {mode === "create" ? "Create Exercise" : "Save"}
             </button>
             <button
               type="button"
@@ -163,7 +163,7 @@ export function ExerciseEditor({
                 onClick={onDelete}
                 disabled={loading}
               >
-                Delete Exercise
+                Delete
               </button>
             ) : null}
           </div>
