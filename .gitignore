@@ -3,6 +3,7 @@
 .history
 .cache
 .debug
+.codex
 # /docs/temporary
 
 # vscode agent-os integration
