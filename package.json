@@ -8,19 +8,21 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts",
+    "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts --exclude lib/exercise-import-preview.integration.test.ts",
     "test:supabase-read": "vitest run lib/supabase/workout-content.integration.test.ts",
     "test:supabase-state": "vitest run lib/supabase/workout-app-state.integration.test.ts",
-    "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts"
+    "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts",
+    "test:exercise-import-preview": "vitest run lib/exercise-import-preview.integration.test.ts"
   },
   "archivedScripts": {
     "build:legacy": "node scripts/build-with-metadata.mjs",
     "lint:legacy": "eslint .",
     "type-check": "tsc --noEmit",
-    "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts",
+    "test": "vitest run --exclude lib/supabase/workout-content.integration.test.ts --exclude lib/supabase/workout-app-state.integration.test.ts --exclude lib/supabase/workout-content-crud.integration.test.ts --exclude lib/exercise-import-preview.integration.test.ts",
     "test:supabase-read": "vitest run lib/supabase/workout-content.integration.test.ts",
     "test:supabase-state": "vitest run lib/supabase/workout-app-state.integration.test.ts",
-    "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts"
+    "test:supabase-crud": "vitest run lib/supabase/workout-content-crud.integration.test.ts",
+    "test:exercise-import-preview": "vitest run lib/exercise-import-preview.integration.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",

@@ -355,6 +355,13 @@ export async function updateExercise(
   return updateExerciseWithClient(await createClient(), exercise);
 }
 
+export async function updateExerciseCollectionIdById(
+  id: string,
+  collectionId: string,
+): Promise<UpsertExerciseResult> {
+  return updateExerciseCollectionIdByIdWithClient(await createClient(), id, collectionId);
+}
+
 export async function updateExerciseWithClient(
   client: WorkoutContentClient,
   exercise: ExerciseRecordValues,
@@ -372,6 +379,29 @@ export async function updateExerciseWithClient(
 
   if (!data) {
     return { ok: false, error: "Exercise update returned no data." };
+  }
+
+  return { ok: true, recordId: data.id };
+}
+
+export async function updateExerciseCollectionIdByIdWithClient(
+  client: WorkoutContentClient,
+  id: string,
+  collectionId: string,
+): Promise<UpsertExerciseResult> {
+  const { data, error: queryError } = await client
+    .from("exercises")
+    .update({ collection_id: collectionId })
+    .eq("id", id)
+    .select("id")
+    .single();
+
+  if (queryError) {
+    return { ok: false, error: queryError.message };
+  }
+
+  if (!data) {
+    return { ok: false, error: "Exercise collection update returned no data." };
   }
 
   return { ok: true, recordId: data.id };
@@ -403,6 +433,40 @@ export async function fetchCollectionByIdWithClient(
 
 export async function fetchExerciseById(id: string): Promise<Exercise | null> {
   return fetchExerciseByIdWithClient(await createClient(), id);
+}
+
+export async function fetchExerciseImportPreviewMatchByName(name: string): Promise<{
+  id: string;
+  collectionId: string;
+} | null> {
+  return fetchExerciseImportPreviewMatchByNameWithClient(await createClient(), name);
+}
+
+export async function fetchExerciseImportPreviewMatchByNameWithClient(
+  client: WorkoutContentClient,
+  name: string,
+): Promise<{
+  id: string;
+  collectionId: string;
+} | null> {
+  const { data, error: queryError } = await client
+    .from("exercises")
+    .select("id, collection_id")
+    .eq("name", name)
+    .maybeSingle();
+
+  if (queryError) {
+    throw new Error(`Supabase exercise exact-name lookup failed: ${queryError.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    collectionId: data.collection_id,
+  };
 }
 
 export async function fetchExerciseByIdWithClient(
