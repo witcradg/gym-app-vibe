@@ -1216,6 +1216,9 @@ export default function HomeClient({
             >
               Reset Session
             </button>
+            <Link href="/printable-exercises" className="home__manage-link">
+              Print Lists
+            </Link>
             <Link href="/dashboard/workouts" className="home__manage-link">
               Dashboard
             </Link>
