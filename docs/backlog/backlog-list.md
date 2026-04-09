@@ -23,7 +23,9 @@ make the cards animate slightly when swiping up to show the next card
 
 the exercise id values are strangely a mix of guids and string names converted to hyphenated lowercase.
 
+Redesign to allow an exercise to be assigned to more than one collection.
 
+Add a hambuger menu to the phone app (add a regular menu for desktop screens)
 
 
 
