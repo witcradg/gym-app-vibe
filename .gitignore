@@ -4,6 +4,7 @@
 .cache
 .debug
 .codex
+.letta
 # /docs/temporary
 
 # vscode agent-os integration
